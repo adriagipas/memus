@@ -6,6 +6,7 @@ binari autocontingut. La llista completa de màquines simulades i els
 seus corresponents binaris són:
 
 - Game Gear: *memugg*
+- Game Boy Color: *memugbc*
 
 ## Compilació i instal·lació
 
