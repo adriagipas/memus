@@ -1,0 +1,9 @@
+[submodule "external/Z80"]
+	path = external/Z80
+	url = https://github.com/adriagipas/Z80
+[submodule "external/GG"]
+	path = external/GG
+	url = https://github.com/adriagipas/GG.git
+[submodule "external/GBC"]
+	path = external/GBC
+	url = https://github.com/adriagipas/GBC.git
