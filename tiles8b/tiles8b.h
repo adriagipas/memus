@@ -14,7 +14,7 @@
  * General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Foobar.  If not, see <https://www.gnu.org/licenses/>.
+ * along with adriagipas/memus.  If not, see <https://www.gnu.org/licenses/>.
  */
 /*
  *  tiles8b.h - Tiles de 8 bits amb 2 colors.

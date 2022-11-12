@@ -14,5 +14,4 @@ subdir('tiles16b')
 subdir('vgafont')
 subdir('external')
 subdir('memugg')
-#subdir('memugbc')
-
+subdir('memugbc')
