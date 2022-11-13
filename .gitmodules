@@ -7,3 +7,6 @@
 [submodule "external/GBC"]
 	path = external/GBC
 	url = https://github.com/adriagipas/GBC.git
+[submodule "external/NES"]
+	path = external/NES
+	url = https://github.com/adriagipas/NES.git
