@@ -7,6 +7,7 @@ seus corresponents binaris són:
 
 - Game Gear: *memugg*
 - Game Boy Color: *memugbc*
+- Nintendo Entertainment System: *memunes*
 
 ## Compilació i instal·lació
 
@@ -37,4 +38,3 @@ cd build
 meson compile
 meson install
 ```
-
