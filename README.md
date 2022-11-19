@@ -5,9 +5,10 @@ Els meus emuladors (en realitat simuladors) de maquinetes antigues.
 binari autocontingut. La llista completa de màquines simulades i els
 seus corresponents binaris són:
 
-- Game Gear: *memugg*
-- Game Boy Color: *memugbc*
-- Nintendo Entertainment System: *memunes*
+- **Game Gear**: *memugg*
+- **Game Boy Color**: *memugbc*
+- **Nintendo Entertainment System**: *memunes*
+- **Donald Knuth's hypothetical computer MIX**: *memumix*
 
 ## Compilació i instal·lació
 
