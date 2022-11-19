@@ -64,3 +64,9 @@ NES= static_library('NES',
                     'NES/src/mappers/nrom.h',
                     'NES/src/mappers/unrom.h',
                     include_directories : [NES_H])
+
+MIX_H= include_directories('MIX/src')
+MIX= static_library('MIX',
+                    'MIX/src/MIX.h',
+                    'MIX/src/mix.c',
+                    include_directories : [MIX_H])

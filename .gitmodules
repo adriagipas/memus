@@ -10,3 +10,6 @@
 [submodule "external/NES"]
 	path = external/NES
 	url = https://github.com/adriagipas/NES.git
+[submodule "external/MIX"]
+	path = external/MIX
+	url = https://github.com/adriagipas/MIX.git
