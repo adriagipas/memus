@@ -1,3 +1,10 @@
+# Endianisme
+if host_machine.endian()=='little'
+   ENDFLAGS='-D__LITTLE_ENDIAN__'
+else
+   ENDFLAGS='-D__BIG_ENDIAN__'
+endif
+
 Z80_H= include_directories('Z80/src')
 Z80= static_library('Z80',
                     'Z80/src/Z80.h',
@@ -83,3 +90,29 @@ CD= static_library('CD',
                    'CD/src/utils.c',
                    'CD/src/utils.h',
                    include_directories : [CD_H])
+
+PSX_H= include_directories('PSX/src')
+PSX= static_library('PSX',
+                    'PSX/src/cd.c',
+                    'PSX/src/cpu_interpreter_cop0.h',
+                    'PSX/src/cpu_regs.c',
+                    'PSX/src/gpu.c',
+                    'PSX/src/joy.c',
+                    'PSX/src/mem.c',
+                    'PSX/src/stats_renderer.c',
+                    'PSX/src/cpu_decode.c',
+                    'PSX/src/cpu_interpreter_cop2.h',
+                    'PSX/src/default_renderer.c',
+                    'PSX/src/gte.c',
+                    'PSX/src/main.c',
+                    'PSX/src/PSX.h',
+                    'PSX/src/timers.c',
+                    'PSX/src/cpu_interpreter.c',
+                    'PSX/src/cpu_interpreter_inst1.h',
+                    'PSX/src/dma.c',
+                    'PSX/src/int.c',
+                    'PSX/src/mdec.c',
+                    'PSX/src/spu.c',
+                    c_args : ENDFLAGS,
+                    include_directories : [PSX_H,CD_H])
+                    

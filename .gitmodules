@@ -16,3 +16,6 @@
 [submodule "external/CD"]
 	path = external/CD
 	url = https://github.com/adriagipas/CD.git
+[submodule "external/PSX"]
+	path = external/PSX
+	url = https://github.com/adriagipas/PSX.git
