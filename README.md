@@ -5,10 +5,11 @@ Els meus emuladors (en realitat simuladors) de maquinetes antigues.
 binari autocontingut. La llista completa de màquines simulades i els
 seus corresponents binaris són:
 
+- **Donald Knuth's hypothetical computer MIX**: *memumix*
 - **Game Gear**: *memugg*
 - **Game Boy Color**: *memugbc*
 - **Nintendo Entertainment System**: *memunes*
-- **Donald Knuth's hypothetical computer MIX**: *memumix*
+- **PlayStation**: *memups*
 
 ## Compilació i instal·lació
 
