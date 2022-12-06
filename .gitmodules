@@ -13,3 +13,6 @@
 [submodule "external/MIX"]
 	path = external/MIX
 	url = https://github.com/adriagipas/MIX.git
+[submodule "external/CD"]
+	path = external/CD
+	url = https://github.com/adriagipas/CD.git

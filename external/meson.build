@@ -70,3 +70,16 @@ MIX= static_library('MIX',
                     'MIX/src/MIX.h',
                     'MIX/src/mix.c',
                     include_directories : [MIX_H])
+
+CD_H= include_directories('CD/src')
+CD= static_library('CD',
+                   'CD/src/CD.h',
+                   'CD/src/crc.c',
+                   'CD/src/crc.h',
+                   'CD/src/cue.c',
+                   'CD/src/cue.h',
+                   'CD/src/info.c',
+                   'CD/src/new.c',
+                   'CD/src/utils.c',
+                   'CD/src/utils.h',
+                   include_directories : [CD_H])
