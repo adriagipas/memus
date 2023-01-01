@@ -8,6 +8,7 @@ seus corresponents binaris són:
 - **Donald Knuth's hypothetical computer MIX**: *memumix*
 - **Game Gear**: *memugg*
 - **Game Boy Color**: *memugbc*
+- **Mega Drive**: *memumd*
 - **Nintendo Entertainment System**: *memunes*
 - **PlayStation**: *memups*
 
