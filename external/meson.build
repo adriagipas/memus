@@ -115,4 +115,24 @@ PSX= static_library('PSX',
                     'PSX/src/spu.c',
                     c_args : ENDFLAGS,
                     include_directories : [PSX_H,CD_H])
-                    
+
+MD_H= include_directories('MD/src')
+MD= static_library('MD',
+                   'MD/src/audio.c',
+                   'MD/src/cpu_dis.c',
+                   'MD/src/fm.c',
+                   'MD/src/main.c',
+                   'MD/src/mem.c',
+                   'MD/src/rom.c',
+                   'MD/src/unpack.c',
+                   'MD/src/vdp.c',
+                   'MD/src/cpu.c',
+                   'MD/src/eeprom.c',
+                   'MD/src/io.c',
+                   'MD/src/MD.h',
+                   'MD/src/psg.c',
+                   'MD/src/svp.c',
+                   'MD/src/unpack.h',
+                   'MD/src/z80.c',
+                   c_args : ENDFLAGS,
+                   include_directories : [MD_H,Z80_H])
