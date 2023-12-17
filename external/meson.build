@@ -89,6 +89,8 @@ CD= static_library('CD',
                    'CD/src/new.c',
                    'CD/src/utils.c',
                    'CD/src/utils.h',
+                   'CD/src/iso.c',
+                   'CD/src/iso.h',
                    include_directories : [CD_H])
 
 PSX_H= include_directories('PSX/src')
