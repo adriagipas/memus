@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 Adrià Giménez Pastor.
+ * Copyright 2022-2024 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -69,8 +69,7 @@ create_ifname (
   // Afegeix .interface
   buf= g_string_new ( tmp );
   g_string_append ( buf, ".interface" );
-  _ifname= buf->str;
-  g_string_free ( buf, FALSE );
+  _ifname= g_string_free_and_steal ( buf );
   g_free ( tmp );
   
 } // end create_ifname
@@ -210,8 +209,7 @@ get_name (
       else
         g_string_append ( buf, ".norom" );
     }
-  ret= buf->str;
-  g_string_free ( buf, FALSE );
+  ret= g_string_free_and_steal ( buf );
 
   return ret;
   

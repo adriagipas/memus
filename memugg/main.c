@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2022 Adrià Giménez Pastor.
+ * Copyright 2014-2024 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -223,8 +223,7 @@ get_title (
         {
           buf= g_string_new ( NULL );
           g_string_printf ( buf, "memuGG (%s)", sname );
-          ret= buf->str;
-          g_string_free ( buf, FALSE );
+          ret= g_string_free_and_steal ( buf );
         }
       else ret= g_strdup ( "memuGG" );
     }
