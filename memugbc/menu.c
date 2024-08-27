@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2022 Adrià Giménez Pastor.
+ * Copyright 2014-2024 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -28,8 +28,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "conf.h"
 #include "effects.h"
+#include "fchooser.h"
 #include "hud.h"
+#include "load_bios.h"
 #include "menu.h"
 #include "mpad.h"
 #include "screen.h"
@@ -94,6 +97,10 @@ static struct
 
 /* Fons. */
 static int _background[WIDTH*HEIGHT];
+
+// Verbose i bios
+static const GBCu8 **_bios;
+static int _verbose;
 
 
 
@@ -381,6 +388,74 @@ quit_mmenu_action (void)
 } /* end quit_mmenu_action */
 
 
+static const char *
+change_bios_get_text (void)
+{
+  return "SELECCIONA BIOS";
+} // end change_bios_get_text
+
+
+static int
+change_bios (
+             const bool reboot
+             )
+{
+
+  bool stop,quit;
+  const char *bios_fn;
+  int ret;
+  fchooser_t *fc;
+  
+  
+  fc= fchooser_new ( ".*", true, _background, _verbose );
+  stop= quit= false;
+  while ( !stop )
+    {
+      bios_fn= fchooser_run ( fc, &quit );
+      if ( quit ) { stop= true; ret= QUIT; }
+      else if ( bios_fn == NULL ) { stop= true; ret= CONTINUE; }
+      else
+        {
+          stop= true;
+          ret= reboot ? QUIT_MAINMENU : RESUME;
+          if ( bios_fn[0] == '\0' ) bios_fn= NULL;
+          conf_set_bios_fn ( _conf, bios_fn );
+          *_bios= load_bios ( _conf, _verbose );
+          if ( bios_fn != NULL && *_bios == NULL )
+            {
+              if ( fchooser_error_dialog ( fc ) == -1 )
+                ret= QUIT;
+            }
+        }
+    }
+  fchooser_free ( fc );
+  
+  return ret;
+  
+} // end change_bios
+
+
+static int
+change_bios_action (void)
+{
+  return change_bios ( false );
+} // end change_bios_action
+
+
+static const char *
+change_bios_reboot_get_text (void)
+{
+  return "BIOS I REINICIA";
+} // end change_bios_reboot_get_text
+
+
+static int
+change_bios_reboot_action (void)
+{
+  return change_bios ( true );
+} // end change_bios_reboot_action
+
+
 
 
 /**********************/
@@ -389,13 +464,17 @@ quit_mmenu_action (void)
 
 void
 init_menu (
-           conf_t         *conf,
-           const gboolean  big_screen
+           conf_t          *conf,
+           const GBCu8    **bios,
+           const gboolean   big_screen,
+           const int        verbose
            )
 {
   
   _conf= conf;
   _bg_off= big_screen ? MENU_MODE_SENTINEL : 0;
+  _bios= bios;
+  _verbose= verbose;
   
   _style.x= 1;
   _style.y= 5;
@@ -443,6 +522,7 @@ menu_run (
       {screen_size_get_text,screen_size_action},
       {change_scaler_get_text,change_scaler_action},
       {config_keys_get_text,config_keys_action},
+      {change_bios_reboot_get_text,change_bios_reboot_action},
       {help_get_text,help_action},
       {quit_get_text,quit_action}
     };
@@ -453,6 +533,7 @@ menu_run (
       {screen_size_get_text,screen_size_action},
       {change_scaler_get_text,change_scaler_action},
       {config_keys_get_text,config_keys_action},
+      {change_bios_get_text,change_bios_action},
       {help_get_text,help_action},
       {quit_get_text,quit_action}
     };
@@ -470,6 +551,7 @@ menu_run (
     {
       {resume_get_text,resume_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_bios_reboot_get_text,change_bios_reboot_action},
       {help_get_text,help_action},
       {quit_get_text,quit_action}
     };
@@ -478,6 +560,7 @@ menu_run (
     {
       {quit_mmenu_get_text,quit_mmenu_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_bios_get_text,change_bios_action},
       {help_get_text,help_action},
       {quit_get_text,quit_action}
     };
@@ -485,11 +568,11 @@ menu_run (
   static const menumode_t menus[]=
     {
       { 7, menu_ingame_mainmenu },
-      { 6, menu_ingame_nomainmenu },
-      { 6, menu_mainmenu },
+      { 7, menu_ingame_nomainmenu },
+      { 7, menu_mainmenu },
       { 5, menu_ingame_mainmenu_bg },
-      { 4, menu_ingame_nomainmenu_bg },
-      { 4, menu_mainmenu_bg }
+      { 5, menu_ingame_nomainmenu_bg },
+      { 5, menu_mainmenu_bg }
     };
 
   const gulong delay1= 200000;

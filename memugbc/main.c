@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2022 Adrià Giménez Pastor.
+ * Copyright 2014-2024 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -318,13 +318,17 @@ run_with_rom (
   bios= load_bios ( &conf, opts->verbose );
   init_frontend ( &conf,
         	  opts->title==NULL ? "memuGBC" : opts->title,
-        	  opts->big_screen );
+                  &bios,
+        	  opts->big_screen,
+                  opts->verbose );
   
   /* Executa. */
-  if ( frontend_run ( bios, &rom, rom_id, opts->sram_fn,
-        	      opts->state_prefix, MENU_MODE_INGAME_NOMAINMENU,
-        	      &response, opts->verbose ) == -1 )
-    error ( "no s'ha pogut executar la ROM '%s'", args->rom_fn );
+  do {
+    if ( frontend_run ( &rom, rom_id, opts->sram_fn,
+                        opts->state_prefix, MENU_MODE_INGAME_NOMAINMENU,
+                        &response ) == -1 )
+      error ( "no s'ha pogut executar la ROM '%s'", args->rom_fn );
+  } while ( response == MENU_QUIT_MAINMENU );
   
   /* Allibera memòria i tanca. */
   close_frontend ();
@@ -356,10 +360,10 @@ run_without_rom (
     conf_set_bios_fn ( &conf, opts->set_bios_fn );
   if ( opts->unset_bios_fn ) conf_set_bios_fn ( &conf, NULL );
   bios= load_bios ( &conf, opts->verbose );
-  init_frontend ( &conf, "memuGBC", opts->big_screen );
+  init_frontend ( &conf, "memuGBC", &bios, opts->big_screen, opts->verbose );
   
   /* Executa. */
-  main_menu ( &conf, bios, opts->verbose );
+  main_menu ( &conf, opts->verbose );
   
   /* Allibera memòria i tanca. */
   close_frontend ();

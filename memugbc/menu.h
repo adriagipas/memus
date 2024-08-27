@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2022 Adrià Giménez Pastor.
+ * Copyright 2014-2024 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -25,6 +25,7 @@
 #define __MENU_H__
 
 #include "conf.h"
+#include "load_bios.h"
 
 typedef enum {
   MENU_MODE_INGAME_MAINMENU= 0,
@@ -41,8 +42,10 @@ typedef enum {
 
 void
 init_menu (
-           conf_t         *conf,
-           const gboolean  big_screen
+           conf_t          *conf,
+           const GBCu8    **bios,
+           const gboolean   big_screen,
+           const int        verbose
            );
 
 void

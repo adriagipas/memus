@@ -27,23 +27,82 @@
 #include <glib.h>
 #include <stdbool.h>
 
-void
-close_fchooser (void);
+#include "filesel.h"
+#include "t8biso.h"
+#include "screen.h"
+
+// Número de entrades visible.
+#define FCNVIS 10
+
+typedef struct
+{
+
+  gboolean         is_dir;
+  const gchar     *path;    // Punter a filesel_t. NULL significa ".."
+  gchar           *path_name;
+  t8biso_banner_t *banner;
+  
+} fchooser_node_t;
+
+// Selector de fitxers.
+typedef struct
+{
+
+  filesel_t       *fsel;
+  
+  const gchar     *cdir; // Punter a fsel.
+  gchar           *cdir_name;
+
+  fchooser_node_t *v;
+  guint            size;
+  guint            N;
+  t8biso_banner_t  banners[FCNVIS+1]; // 0 és per a cdir.
+
+  guint            first;
+  guint            last;
+  guint            current;
+
+  int              fgcolor_cdir;
+  int              fgcolor_entry;
+  int              fgcolor_selected_entry;
+  int              fgcolor_sc;
+
+  bool             empty_entry;
+
+  gboolean         verbose;
+
+  // Punter al background
+  const int       *background;
+
+  // Frame buffer.
+  int              fb[WIDTH*HEIGHT];
+  
+} fchooser_t;
 
 void
-init_fchooser (
-               const int      *background,
-               const gboolean  verbose
+fchooser_free (
+               fchooser_t *fc
                );
+
+fchooser_t *
+fchooser_new (
+              const gchar    *selector,
+              const bool      empty_entry,
+              const int      *background,
+              const gboolean  verbose
+              );
 
 // NULL vol dir que s'ha eixit sense elegir res.
 const char *
 fchooser_run (
-              bool *quit
+              fchooser_t *fc,
+              bool       *quit
               );
 
 // Un -1 indica que s'ha forçat l'eixida.
 int
-fchooser_error_dialog (void);
+fchooser_error_dialog (
+                       fchooser_t *fc
+                       );
 
 #endif // __FCHOOSER_H__

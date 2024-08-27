@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2022 Adrià Giménez Pastor.
+ * Copyright 2014-2024 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -50,6 +50,10 @@
 
 /* Per a indicar que es vol eixir. */
 static gboolean _quit;
+
+// Bios i verbose
+static const GBCu8 **_bios;
+static int _verbose;
 
 
 
@@ -379,14 +383,12 @@ frontend_reconfigure (
 
 int
 frontend_run (
-              const GBCu8       *bios,
               const GBC_Rom     *rom,
               const char        *rom_id,
               const char        *sram_fn,
               const char        *state_prefix,
               const menu_mode_t  menu_mode,
-              menu_response_t   *response,
-              const int          verbose
+              menu_response_t   *response
               )
 {
   
@@ -407,9 +409,9 @@ frontend_run (
 
   *response= MENU_QUIT_MAINMENU;
   _quit= FALSE;
-  init_sram ( rom_id, sram_fn, verbose );
-  init_state ( rom_id, state_prefix, verbose );
-  err= GBC_init ( bios, rom, &frontend, NULL );
+  init_sram ( rom_id, sram_fn, _verbose );
+  init_state ( rom_id, state_prefix, _verbose );
+  err= GBC_init ( *_bios, rom, &frontend, NULL );
   switch ( err )
     {
     case GBC_EUNKMAPPER:
@@ -450,14 +452,19 @@ frontend_run (
 
 void
 init_frontend (
-               conf_t         *conf,
-               const char     *title,
-               const gboolean  big_screen
+               conf_t          *conf,
+               const char      *title,
+               const GBCu8    **bios,
+               const gboolean   big_screen,
+               const int        verbose
                )
 {
 
   int ret;
   
+  
+  _verbose= verbose;
+  _bios= bios;
   
   ret= SDL_Init ( SDL_INIT_AUDIO|SDL_INIT_VIDEO|
         	  SDL_INIT_JOYSTICK|SDL_INIT_EVENTS|
@@ -470,7 +477,7 @@ init_frontend (
   init_pad ( conf );
   init_tiles8b ();
   init_t8biso ();
-  init_menu ( conf, big_screen );
+  init_menu ( conf, bios, big_screen, verbose );
   init_hud ();
   
 } /* end init_frontend */

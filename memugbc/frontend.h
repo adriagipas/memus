@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2022 Adrià Giménez Pastor.
+ * Copyright 2014-2024 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -41,21 +41,21 @@ frontend_reconfigure (
 /* Torna -1 en cas d'error, 0 si tot ha anat bé. */
 int
 frontend_run (
-              const GBCu8       *bios,
-               const GBC_Rom     *rom,
+              const GBC_Rom     *rom,
               const char        *rom_id,
               const char        *sram_fn,
               const char        *state_prefix,
               const menu_mode_t  menu_mode,
-              menu_response_t   *response,
-              const int          verbose
+              menu_response_t   *response
               );
 
 void
 init_frontend (
-               conf_t         *conf,
-               const char     *title,
-               const gboolean  big_screen
+               conf_t          *conf,
+               const char      *title,
+               const GBCu8    **bios,
+               const gboolean   big_screen,
+               const int        verbose
                );
 
 #endif /* __FRONTEND_H__ */

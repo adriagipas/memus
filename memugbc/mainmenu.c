@@ -50,7 +50,6 @@
 
 // Opcions.
 static gboolean _verbose;
-static const GBCu8 *_bios;
 
 /* Configuració per defecte. */
 conf_t *_conf;
@@ -116,9 +115,8 @@ run_romfn (
   */
   
   // Executa.
-  ret= frontend_run ( _bios, &rom, rom_id, NULL, NULL,
-        	      MENU_MODE_INGAME_MAINMENU, &response,
-        	      _verbose );
+  ret= frontend_run ( &rom, rom_id, NULL, NULL,
+        	      MENU_MODE_INGAME_MAINMENU, &response );
   
   // Tanca.
   /*
@@ -142,28 +140,27 @@ run_romfn (
 void
 main_menu (
            conf_t         *conf,
-           const GBCu8    *bios,
            const gboolean  verbose
            )
 {
 
   const char *rom_fn;
   bool stop,quit;
+  fchooser_t *fc;
   
   
   // Prepara.
   _verbose= verbose;
-  _bios= bios;
   _conf= conf;
   hud_hide ();
   init_background ();
-  init_fchooser ( _background, verbose );
+  fc= fchooser_new ( "[.]gbc?$", false, _background, verbose );
   
   // Executa.
   stop= quit= false;
   while ( !stop )
     {
-      rom_fn= fchooser_run ( &quit );
+      rom_fn= fchooser_run ( fc, &quit );
       if ( quit ) stop= true;
       else if ( rom_fn == NULL )
         {
@@ -175,7 +172,7 @@ main_menu (
           switch ( run_romfn ( rom_fn ) )
             {
             case ERROR:
-              if ( fchooser_error_dialog () == -1 )
+              if ( fchooser_error_dialog ( fc ) == -1 )
                 stop= true;
               break;
             case QUIT:
@@ -187,6 +184,6 @@ main_menu (
     }
   
   // Allibera.
-  close_fchooser ();
+  fchooser_free ( fc );
   
 } // end main_menu

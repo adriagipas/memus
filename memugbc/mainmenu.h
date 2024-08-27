@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2022 Adrià Giménez Pastor.
+ * Copyright 2015-2024 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -31,7 +31,6 @@
 void
 main_menu (
            conf_t         *conf,
-           const GBCu8    *bios,
            const gboolean  verbose
            );
 

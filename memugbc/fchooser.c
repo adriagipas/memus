@@ -29,6 +29,7 @@
 #include "dirs.h"
 #include "effects.h"
 #include "error.h"
+#include "fchooser.h"
 #include "filesel.h"
 #include "mpad.h"
 #include "screen.h"
@@ -42,29 +43,9 @@
 /* MACROS */
 /**********/
 
-// Número de entrades visible.
-#define FCNVIS 10
-
 // Amplaria dels banners.
 #define FCBANNER_CDIR_WIDTH (WIDTH-16-2)
 #define FCBANNER_WIDTH (FCBANNER_CDIR_WIDTH-8)
-
-
-
-
-/*********/
-/* TIPUS */
-/*********/
-
-typedef struct
-{
-
-  gboolean         is_dir;
-  const gchar     *path;    // Punter a filesel_t. NULL significa ".."
-  gchar           *path_name;
-  t8biso_banner_t *banner;
-  
-} fchooser_node_t;
 
 
 
@@ -85,38 +66,7 @@ static const unsigned char FOLDER[8]=
 /* ESTAT */
 /*********/
 
-static gboolean _verbose;
 
-// Punter al background
-static const int *_background;
-
-// Frame buffer.
-static int _fb[WIDTH*HEIGHT];
-
-// Selector de fitxers.
-static struct
-{
-
-  filesel_t       *fsel;
-  
-  const gchar     *cdir; // Punter a fsel.
-  gchar           *cdir_name;
-
-  fchooser_node_t *v;
-  guint            size;
-  guint            N;
-  t8biso_banner_t  banners[FCNVIS+1]; // 0 és per a cdir.
-
-  guint            first;
-  guint            last;
-  guint            current;
-
-  int              fgcolor_cdir;
-  int              fgcolor_entry;
-  int              fgcolor_selected_entry;
-  int              fgcolor_sc;
-  
-} _fchooser;
 
 
 
@@ -126,30 +76,33 @@ static struct
 /*********************/
 
 static void
-draw_background (void)
+draw_background (
+                 fchooser_t *fc
+                 )
 {
-  memcpy ( _fb, _background, sizeof(_fb) );
+  memcpy ( fc->fb, fc->background, sizeof(fc->fb) );
 } // end draw_background
 
 
 static void
 draw_rectangle (
-        	const int x,
-        	const int y,
-        	const int width,
-        	const int height,
-        	const int color
+                fchooser_t  *fc,
+        	const int    x,
+        	const int    y,
+        	const int    width,
+        	const int    height,
+        	const int    color
         	)
 {
 
   int off, row, col;
   int *p;
   
-
+  
   off= y*WIDTH + x;
   for ( row= 0; row < height; ++row, off+= WIDTH )
     {
-      p= &(_fb[off]);
+      p= &(fc->fb[off]);
       for ( col= 0; col < width; ++col )
         p[col]= color;
     }
@@ -159,9 +112,10 @@ draw_rectangle (
 
 static void
 draw_folder (
-             const int x,
-             const int y,
-             const int color
+             fchooser_t  *fc,
+             const int    x,
+             const int    y,
+             const int    color
              )
 {
 
@@ -173,7 +127,7 @@ draw_folder (
   off= y*WIDTH + x;
   for ( row= 0; row < 8; ++row, off+= WIDTH )
     {
-      p= &(_fb[off]);
+      p= &(fc->fb[off]);
       b= FOLDER[row];
       for ( col= 0; col < 8; ++col )
         {
@@ -187,36 +141,53 @@ draw_folder (
 
 static void
 draw_scrollbar (
-        	const int x,
-        	const int y,
-        	const int width,
-        	const int height,
-        	const int pos,
-        	const int nitems,
-        	const int N,  // total items.
-        	const int color
+                fchooser_t  *fc,
+        	const int    x,
+        	const int    y,
+        	const int    width,
+        	const int    height,
+        	const int    pos,
+        	const int    nitems,
+        	const int    N,  // total items.
+        	const int    color
         	)
 {
-
+  
   int y_sc, height_sc;
   double seg_size;
 
   
   // Fons.
-  effect_fade ( _fb, x, y, width, height, 0.50 );
+  effect_fade ( fc->fb, x, y, width, height, 0.50 );
 
   // Barra.
   seg_size= height / (double) N;
   y_sc= y + (int) (seg_size*pos + 0.5);
   height_sc= (int) (seg_size*nitems + 0.5);
-  draw_rectangle ( x, y_sc, width, height_sc, color );
+  draw_rectangle ( fc, x, y_sc, width, height_sc, color );
   
 } // end draw_scrollbar
 
 
+static const gchar *
+get_entry_name (
+                fchooser_t *fc,
+                const int   entry
+                )
+{
+
+  if ( fc->v[entry].path_name==NULL ) return "..";
+  else if ( fc->v[entry].path_name[0]=='\0' ) return "--EMPTY--";
+  else return fc->v[entry].path_name;
+  
+} // end get_entry_name
+
+
 // Pot tornar NULL.
 static gchar *
-fchooser_read_cdir (void)
+fchooser_read_cdir (
+                    fchooser_t *fc
+                    )
 {
 
   gchar *fn, *cdir;
@@ -229,7 +200,7 @@ fchooser_read_cdir (void)
   ret= g_file_get_contents ( fn, &cdir, &length, NULL );
   if ( ret )
     {
-      if ( _verbose )
+      if ( fc->verbose )
         fprintf ( stderr, "S'ha llegit el directori actual de '%s'\n", fn );
       cdir[length-1]= '\0';
     }
@@ -243,6 +214,7 @@ fchooser_read_cdir (void)
 
 static void
 fchooser_write_cdir (
+                     fchooser_t  *fc,
         	     const gchar *cdir
         	     )
 {
@@ -259,7 +231,7 @@ fchooser_write_cdir (
         	fn, err->message );
       g_error_free ( err );
     }
-  else if ( _verbose )
+  else if ( fc->verbose )
     fprintf ( stderr, "S'ha escrit el directori actual en '%s'\n", fn );
   g_free ( fn );
   
@@ -267,91 +239,99 @@ fchooser_write_cdir (
 
 
 static void
-fchooser_clean (void)
+fchooser_clean (
+                fchooser_t *fc
+                )
 {
 
   guint n;
 
   
-  if ( _fchooser.cdir_name != NULL ) g_free ( _fchooser.cdir_name );
-  _fchooser.cdir_name= NULL;
-  for ( n= 0; n < _fchooser.N; ++n )
-    if ( _fchooser.v[n].path_name != NULL )
-      g_free ( _fchooser.v[n].path_name );
+  if ( fc->cdir_name != NULL ) g_free ( fc->cdir_name );
+  fc->cdir_name= NULL;
+  for ( n= 0; n < fc->N; ++n )
+    if ( fc->v[n].path_name != NULL )
+      g_free ( fc->v[n].path_name );
   
-} // end fchooser_clean_entries
+} // end fchooser_clean
 
 
 static void
 fchooser_add_entry (
+                    fchooser_t     *fc,
         	    const gchar    *path,
         	    const gboolean  is_dir
         	    )
 {
 
   // Reserva memòria.
-  if ( _fchooser.N == _fchooser.size )
+  if ( fc->N == fc->size )
     {
-      if ( _fchooser.size == 0 ) _fchooser.size= 1;
-      else                       _fchooser.size*= 2;
-      _fchooser.v= g_renew ( fchooser_node_t, _fchooser.v, _fchooser.size );
+      if ( fc->size == 0 ) fc->size= 1;
+      else                 fc->size*= 2;
+      fc->v= g_renew ( fchooser_node_t, fc->v, fc->size );
     }
 
   // Afegeix.
-  _fchooser.v[_fchooser.N].path= path;
-  _fchooser.v[_fchooser.N].path_name=
-    path==NULL ? NULL : g_path_get_basename ( path );
-  _fchooser.v[_fchooser.N].is_dir= is_dir;
-  _fchooser.v[_fchooser.N].banner= NULL;
-  ++_fchooser.N;
+  fc->v[fc->N].path= path;
+  fc->v[fc->N].path_name=
+    path==NULL ? NULL :
+    ( path[0]=='\0' ? g_strdup ( path ) : g_path_get_basename ( path ) );
+  fc->v[fc->N].is_dir= is_dir;
+  fc->v[fc->N].banner= NULL;
+  ++fc->N;
   
 } // end fchooser_add_entry
 
 
 // Té que estar net.
 static void
-fchooser_fill_entries (void)
+fchooser_fill_entries (
+                       fchooser_t *fc
+                       )
 {
-
+  
   const GSList *p;
   guint n;
   t8biso_banner_t *b;
   
   
   // Ompli directori actual.
-  _fchooser.cdir= filesel_get_current_dir ( _fchooser.fsel );
-  _fchooser.cdir_name= g_path_get_basename ( _fchooser.cdir );
-  t8biso_banner_set_msg ( &(_fchooser.banners[0]),
-        		  _fchooser.cdir_name,
+  fc->cdir= filesel_get_current_dir ( fc->fsel );
+  fc->cdir_name= g_path_get_basename ( fc->cdir );
+  t8biso_banner_set_msg ( &(fc->banners[0]),
+        		  fc->cdir_name,
         		  FCBANNER_CDIR_WIDTH );
   
   // Ompli les entrades.
-  _fchooser.N= 0;
-  fchooser_add_entry ( NULL /*..*/, TRUE );
-  for ( p= filesel_get_dirs ( _fchooser.fsel );
+  fc->N= 0;
+  if ( fc->empty_entry )
+    fchooser_add_entry ( fc, "", FALSE );
+  fchooser_add_entry ( fc, NULL /*..*/, TRUE );
+  for ( p= filesel_get_dirs ( fc->fsel );
         p != NULL;
         p= g_slist_next ( p ) )
-    fchooser_add_entry ( (const gchar *) p->data, TRUE );
-  for ( p= filesel_get_files ( _fchooser.fsel );
+    fchooser_add_entry ( fc, (const gchar *) p->data, TRUE );
+  for ( p= filesel_get_files ( fc->fsel );
         p != NULL;
         p= g_slist_next ( p ) )
-    fchooser_add_entry ( (const gchar *) p->data, FALSE );
+    fchooser_add_entry ( fc, (const gchar *) p->data, FALSE );
 
   // Inicialitza la posició.
-  _fchooser.first= _fchooser.current= 0;
-  _fchooser.last= MIN ( _fchooser.N, FCNVIS ) - 1;
+  fc->first= 0;
+  fc->current= fc->empty_entry ? 1 : 0;
+  fc->last= MIN ( fc->N, FCNVIS ) - 1;
   
   // Assigna els banners.
-  for ( n= _fchooser.first, b= &(_fchooser.banners[1]);
-        n <= _fchooser.last;
+  for ( n= fc->first, b= &(fc->banners[1]);
+        n <= fc->last;
         ++n, ++b )
     {
-      _fchooser.v[n].banner= b;
+      fc->v[n].banner= b;
       t8biso_banner_set_msg ( b,
-        		      _fchooser.v[n].path_name==NULL ? ".." :
-        		      _fchooser.v[n].path_name,
+                              get_entry_name ( fc, n ),
         		      FCBANNER_WIDTH );
-      if ( n != _fchooser.current ) t8biso_banner_pause ( b );
+      if ( n != fc->current ) t8biso_banner_pause ( b );
     }
   
 } // end fchooser_fill_entries
@@ -359,96 +339,101 @@ fchooser_fill_entries (void)
 
 static void
 fchooser_change_dir (
+                     fchooser_t  *fc,
         	     const gchar *path
         	     )
 {
 
-  filesel_change_dir ( _fchooser.fsel, path );
-  fchooser_clean ();
-  fchooser_fill_entries ();
+  filesel_change_dir ( fc->fsel, path );
+  fchooser_clean ( fc );
+  fchooser_fill_entries ( fc );
   
 } // end fchooser_change_dir
 
 
 static void
-fchooser_change_parent_dir (void)
+fchooser_change_parent_dir (
+                            fchooser_t *fc
+                            )
 {
 
-  filesel_change_parent_dir ( _fchooser.fsel );
-  fchooser_clean ();
-  fchooser_fill_entries ();
+  filesel_change_parent_dir ( fc->fsel );
+  fchooser_clean ( fc );
+  fchooser_fill_entries ( fc );
   
 } // end fchooser_change_parent_dir
 
 
 static void
-fchooser_move_up (void)
+fchooser_move_up (
+                  fchooser_t *fc
+                  )
 {
 
   t8biso_banner_t *b;
-
+  
   
   // No pot fer res.
-  if ( _fchooser.current == 0 ) return;
+  if ( fc->current == 0 ) return;
   
   // Para el banner actual.
-  t8biso_banner_pause ( _fchooser.v[_fchooser.current].banner );
+  t8biso_banner_pause ( fc->v[fc->current].banner );
   
   // No es desplaça.
-  if ( _fchooser.current > _fchooser.first )
+  if ( fc->current > fc->first )
     {
-      --_fchooser.current;
-      t8biso_banner_resume ( _fchooser.v[_fchooser.current].banner );
+      --fc->current;
+      t8biso_banner_resume ( fc->v[fc->current].banner );
       return;
     }
   
   // Estem en el primer per tant ens desplacem elminant l'últim.
-  --_fchooser.first;
-  --_fchooser.current;
-  b= _fchooser.v[_fchooser.last].banner;
+  --fc->first;
+  --fc->current;
+  b= fc->v[fc->last].banner;
   t8biso_banner_set_msg ( b,
-        		  _fchooser.v[_fchooser.current].path_name==NULL ?
-        		  ".." : _fchooser.v[_fchooser.current].path_name,
+                          get_entry_name ( fc, fc->current ),
         		  FCBANNER_WIDTH );
-  _fchooser.v[_fchooser.current].banner= b;
+  fc->v[fc->current].banner= b;
   t8biso_banner_resume ( b );
-  --_fchooser.last;
+  --fc->last;
   
 } // end fchooser_move_up
 
 
 static void
-fchooser_move_down (void)
+fchooser_move_down (
+                    fchooser_t *fc
+                    )
 {
   
   t8biso_banner_t *b;
   
   
   // No pot fer res.
-  if ( _fchooser.current == _fchooser.N-1 ) return;
+  if ( fc->current == fc->N-1 ) return;
 
   // Para el banner actual.
-  t8biso_banner_pause ( _fchooser.v[_fchooser.current].banner );
+  t8biso_banner_pause ( fc->v[fc->current].banner );
   
   // No es desplaça.
-  if ( _fchooser.current < _fchooser.last )
+  if ( fc->current < fc->last )
     {
-      ++_fchooser.current;
-      t8biso_banner_resume ( _fchooser.v[_fchooser.current].banner );
+      ++fc->current;
+      t8biso_banner_resume ( fc->v[fc->current].banner );
       return;
     }
 
   // Estem en l'última per tant ens desplacem elminant el primer.
-  ++_fchooser.last;
-  ++_fchooser.current;
-  b= _fchooser.v[_fchooser.first].banner;
+  ++fc->last;
+  ++fc->current;
+  b= fc->v[fc->first].banner;
   t8biso_banner_set_msg ( b,
-        		  _fchooser.v[_fchooser.current].path_name==NULL ?
-        		  ".." : _fchooser.v[_fchooser.current].path_name,
+                          get_entry_name ( fc, fc->current ),
         		  FCBANNER_WIDTH );
-  _fchooser.v[_fchooser.current].banner= b;
+  fc->v[fc->current].banner= b;
   t8biso_banner_resume ( b );
-  ++_fchooser.first;
+  ++fc->first;
   
 } // end fchooser_move_down
 
@@ -456,18 +441,20 @@ fchooser_move_down (void)
 // Torna el fitxer actual o NULL si no hi ha cap fitxer (per exemple
 // era un directori)
 static const char *
-fchooser_select_current_file (void)
+fchooser_select_current_file (
+                              fchooser_t *fc
+                              )
 {
 
   const fchooser_node_t *node;
   const gchar *ret;
   
 
-  node= &(_fchooser.v[_fchooser.current]);
+  node= &(fc->v[fc->current]);
   if ( node->is_dir )
     {
-      if ( node->path == NULL ) fchooser_change_parent_dir ();
-      else                      fchooser_change_dir ( node->path );
+      if ( node->path == NULL ) fchooser_change_parent_dir ( fc );
+      else                      fchooser_change_dir ( fc, node->path );
       ret= NULL;
     }
   else ret= node->path;
@@ -479,7 +466,9 @@ fchooser_select_current_file (void)
 
 // Dibuixa background, fchooser i updateja la pantalla.
 static void
-fchooser_draw (void)
+fchooser_draw (
+               fchooser_t *fc
+               )
 {
   
   static const int OFFY= 8;
@@ -490,41 +479,44 @@ fchooser_draw (void)
   
   
   // Background
-  draw_background ();
+  draw_background ( fc );
 
   // Directori actual.
-  effect_fade ( _fb, 8, OFFY, WIDTH-16, 10, 0.70 );
-  t8biso_banner_draw ( &(_fchooser.banners[0]), _fb, WIDTH, 9, OFFY+1,
-        	       _fchooser.fgcolor_cdir, 0, T8BISO_BG_TRANS );
+  effect_fade ( fc->fb, 8, OFFY, WIDTH-16, 10, 0.70 );
+  t8biso_banner_draw ( &(fc->banners[0]), fc->fb, WIDTH, 9, OFFY+1,
+        	       fc->fgcolor_cdir, 0, T8BISO_BG_TRANS );
 
   // Entrades.
   offy= OFFY+18;
-  for ( n= _fchooser.first; n <= _fchooser.last; ++n )
+  for ( n= fc->first; n <= fc->last; ++n )
     {
-      node= &(_fchooser.v[n]);
-      effect_interpolate_color ( _fb, 8, offy, WIDTH-16, 10, 0x7FFF, 0.60 );
-      if ( node->is_dir ) draw_folder ( 8, offy, _fchooser.fgcolor_entry );
-      t8biso_banner_draw ( node->banner, _fb, WIDTH, 8+9, offy+1,
-        		   (n==_fchooser.current) ?
-        		   _fchooser.fgcolor_selected_entry :
-        		   _fchooser.fgcolor_entry,
+      node= &(fc->v[n]);
+      effect_interpolate_color ( fc->fb, 8, offy,
+                                 WIDTH-16, 10, 0x7FFF, 0.60 );
+      if ( node->is_dir ) draw_folder ( fc, 8, offy, fc->fgcolor_entry );
+      t8biso_banner_draw ( node->banner, fc->fb, WIDTH, 8+9, offy+1,
+        		   (n==fc->current) ?
+        		   fc->fgcolor_selected_entry :
+        		   fc->fgcolor_entry,
         		   0, T8BISO_BG_TRANS );
       offy+= 11; // 1 píxel blanc.
     }
 
   // Barra lliscant
-  if ( _fchooser.N > FCNVIS )
-    draw_scrollbar ( WIDTH-5, OFFY+18, 2, 11*FCNVIS-1, _fchooser.first,
-        	     FCNVIS, _fchooser.N, _fchooser.fgcolor_sc );
+  if ( fc->N > FCNVIS )
+    draw_scrollbar ( fc, WIDTH-5, OFFY+18, 2, 11*FCNVIS-1, fc->first,
+        	     FCNVIS, fc->N, fc->fgcolor_sc );
   
   // Updateja.
-  screen_update ( _fb, NULL );
+  screen_update ( fc->fb, NULL );
   
 } // end fchooser_draw
 
 
 static void
-error_dialog_draw (void)
+error_dialog_draw (
+                   fchooser_t *fc
+                   )
 {
 
   /* NOTA: "Error!! :(" -> 10 caracters. Quadrat de 12x3, centrat queda com:
@@ -541,13 +533,13 @@ error_dialog_draw (void)
   static const int bgcolor= 0x01F;
 
 
-  draw_rectangle ( x*8-1, y*8-1, width*8+2, height*8+2, 0x000 );
-  draw_rectangle ( x*8, y*8, width*8, height*8, bgcolor );
-  tiles8b_draw_string ( _fb, WIDTH, "ERROR!!", x+1, y+1,
+  draw_rectangle ( fc, x*8-1, y*8-1, width*8+2, height*8+2, 0x000 );
+  draw_rectangle ( fc, x*8, y*8, width*8, height*8, bgcolor );
+  tiles8b_draw_string ( fc->fb, WIDTH, "ERROR!!", x+1, y+1,
         		fgcolor, bgcolor, 0 );
-  t8biso_draw_string ( _fb, WIDTH, ":(", x+1+8, y+1,
+  t8biso_draw_string ( fc->fb, WIDTH, ":(", x+1+8, y+1,
         	       fgcolor, bgcolor, 0 );
-  screen_update ( _fb, NULL );
+  screen_update ( fc->fb, NULL );
   
 } // end error_dialog_draw
 
@@ -559,67 +551,78 @@ error_dialog_draw (void)
 /**********************/
 
 void
-close_fchooser (void)
+fchooser_free (
+               fchooser_t *fc
+               )
 {
 
   int i;
 
 
   // Escriu cdir.
-  fchooser_write_cdir ( _fchooser.cdir );
+  fchooser_write_cdir ( fc, fc->cdir );
   
   // Allibera memòria.
-  fchooser_clean ();
+  fchooser_clean ( fc );
   for ( i= 0; i <= FCNVIS; ++i )
-    t8biso_banner_free ( &(_fchooser.banners[i]) );
-  if ( _fchooser.v != NULL ) g_free ( _fchooser.v );
-  if ( _fchooser.cdir_name != NULL ) g_free ( _fchooser.cdir_name );
-  filesel_free ( _fchooser.fsel );
+    t8biso_banner_free ( &(fc->banners[i]) );
+  if ( fc->v != NULL ) g_free ( fc->v );
+  if ( fc->cdir_name != NULL ) g_free ( fc->cdir_name );
+  filesel_free ( fc->fsel );
+  g_free ( fc );
   
-} // end close_fchooser
+} // end fchooser_free
 
 
-void
-init_fchooser (
-               const int      *background,
-               const gboolean  verbose
-               )
+fchooser_t *
+fchooser_new (
+              const gchar    *selector,
+              const bool      empty_entry,
+              const int      *background,
+              const gboolean  verbose
+              )
 {
 
   int i;
   gchar *cdir;
+  fchooser_t *new;
 
-
-  _verbose= verbose;
-  _background= background;
+  new= g_new ( fchooser_t, 1 );
   
-  cdir= fchooser_read_cdir ();
-  _fchooser.fsel= filesel_new ( cdir, "[.]gbc?$" );
+  new->verbose= verbose;
+  new->background= background;
+  
+  cdir= fchooser_read_cdir ( new );
+  new->empty_entry= empty_entry;
+  new->fsel= filesel_new ( cdir, selector );
   if ( cdir != NULL ) g_free ( cdir );
+  
+  new->cdir= NULL;
+  new->cdir_name= NULL;
 
-  _fchooser.cdir= NULL;
-  _fchooser.cdir_name= NULL;
-
-  _fchooser.v= NULL;
-  _fchooser.size= 0;
-  _fchooser.N= 0;
+  new->v= NULL;
+  new->size= 0;
+  new->N= 0;
   for ( i= 0; i <= FCNVIS; ++i )
-    t8biso_banner_init ( &(_fchooser.banners[i]) );
+    t8biso_banner_init ( &(new->banners[i]) );
 
-  _fchooser.fgcolor_cdir= 0x01F; // Roig.
-  _fchooser.fgcolor_entry= 0x000; // Negre.
-  _fchooser.fgcolor_selected_entry= 0x01F; // Roig.
-  _fchooser.fgcolor_sc= 0x01F; // Roig.
+  new->fgcolor_cdir= 0x01F; // Roig.
+  new->fgcolor_entry= 0x000; // Negre.
+  new->fgcolor_selected_entry= 0x01F; // Roig.
+  new->fgcolor_sc= 0x01F; // Roig.
   
-  fchooser_fill_entries ();
+  fchooser_fill_entries ( new );
+
+  return new;
   
-} // end init_fchooser
+} // end fchooser_new
 
 
 // Torna -1 per a indicar que cal eixir.
 const char *
 fchooser_run (
-              bool *quit
+              fchooser_t *fc,
+              bool       *quit
               )
 {
   
@@ -633,7 +636,7 @@ fchooser_run (
     {
 
       mpad_clear ();
-      fchooser_draw ();
+      fchooser_draw ( fc );
       g_usleep ( 20000 ); // 20ms
       
       buttons= mpad_check_buttons ();
@@ -641,13 +644,13 @@ fchooser_run (
       else if ( buttons&K_ESCAPE ) return NULL;
       else if ( buttons&K_BUTTON )
         {
-          ret= fchooser_select_current_file ();
+          ret= fchooser_select_current_file ( fc );
           if ( ret != NULL ) break;
         }
       else if ( buttons&K_UP )
-        fchooser_move_up ();
+        fchooser_move_up ( fc );
       else if ( buttons&K_DOWN )
-        fchooser_move_down ();
+        fchooser_move_down ( fc );
       
     }
   
@@ -657,13 +660,15 @@ fchooser_run (
 
 
 int
-fchooser_error_dialog (void)
+fchooser_error_dialog (
+                       fchooser_t *fc
+                       )
 {
   
   int buttons;
   
   
-  error_dialog_draw (); // No canvia l'estat.
+  error_dialog_draw ( fc ); // No canvia l'estat.
   for (;;)
     {
       mpad_clear ();
