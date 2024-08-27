@@ -73,8 +73,6 @@ struct opts
   gboolean  unset_bios_fn;
   gchar    *sram_fn;
   gchar    *state_prefix;
-  gboolean  enable_vsync;
-  gboolean  disable_vsync;
   gboolean  big_screen;
   
 };
@@ -106,8 +104,6 @@ usage (
       FALSE,    /* unset_bios_fn */
       NULL,     /* sram_fn */
       NULL,     /* state_prefix */
-      FALSE,    /* enable_vsync */
-      FALSE,    /* disable vsync */
       FALSE     /* big_screen */
     };
   
@@ -124,12 +120,6 @@ usage (
         " fa referència al fitxer de configuració de la ROM, sinó fa"
         " referència al fitxer de configuració per defecte",
         "CONF" },
-      { "enable-vsync", 0, 0, G_OPTION_ARG_NONE, &vals.enable_vsync,
-        "Habilita la sincronització vertical. Aquest valor és manté"
-        " per a futures execucions", NULL },
-      { "disable-vsync", 0, 0, G_OPTION_ARG_NONE, &vals.disable_vsync,
-        "Deshabilita la sincronització vertical. Aquest valor és manté"
-        " per a futures execucions", NULL },
       { "unset-bios", 'u', 0, G_OPTION_ARG_NONE, &vals.unset_bios_fn,
         "Deshabilita permanentment la BIOS",
         NULL },
@@ -257,27 +247,6 @@ print_header (
 
 
 static void
-set_vsync (
-           const struct opts *opts,
-           conf_t            *conf
-           )
-{
-
-  if ( opts->enable_vsync )
-    {
-      if ( opts->verbose ) printf ( "V-Sync habilitat\n" );
-      conf->vsync= TRUE;
-    }
-  if ( opts->disable_vsync )
-    {
-      if ( opts->verbose ) printf ( "V-Sync deshabilitat\n" );
-      conf->vsync= FALSE;
-    }
-  
-} /* end set_vsync */
-
-
-static void
 run_with_rom (
               const struct args *args,
               const struct opts *opts
@@ -311,7 +280,6 @@ run_with_rom (
   /* Inicialitza. */
   init_dirs ();
   get_conf ( &conf, rom_id, opts->conf_fn, NULL, opts->verbose );
-  set_vsync ( opts, &conf );
   if ( opts->set_bios_fn != NULL )
     conf_set_bios_fn ( &conf, opts->set_bios_fn );
   if ( opts->unset_bios_fn ) conf_set_bios_fn ( &conf, NULL );
@@ -355,7 +323,6 @@ run_without_rom (
   /* Inicialitza. */
   init_dirs ();
   get_default_conf ( &conf, opts->conf_fn, opts->verbose );
-  set_vsync ( opts, &conf );
   if ( opts->set_bios_fn != NULL )
     conf_set_bios_fn ( &conf, opts->set_bios_fn );
   if ( opts->unset_bios_fn ) conf_set_bios_fn ( &conf, NULL );

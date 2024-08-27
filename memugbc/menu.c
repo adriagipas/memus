@@ -234,6 +234,33 @@ change_scaler_action (void)
 
 
 static const char *
+change_vsync_get_text ()
+{
+  
+  static const char * const text[]=
+    {
+      "VSYNC: Si",
+      "VSYNC: NO"
+    };
+  
+  return text[_conf->vsync ? 0 : 1];
+  
+} // end change_vsync_get_text
+
+
+static int
+change_vsync_action (void)
+{
+
+  _conf->vsync= !_conf->vsync;
+  screen_change_vsync ( _conf->vsync );
+  
+  return CONTINUE;
+  
+} // end change_vsync_action
+
+
+static const char *
 config_keys_get_text (void)
 {
   return "AJUSTA EL TECLAT";
@@ -510,6 +537,7 @@ menu_run (
       {resume_get_text,resume_action},
       {screen_size_get_text,screen_size_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {config_keys_get_text,config_keys_action},
       {help_get_text,help_action},
       {quit_mmenu_get_text,quit_mmenu_action},
@@ -521,6 +549,7 @@ menu_run (
       {resume_get_text,resume_action},
       {screen_size_get_text,screen_size_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {config_keys_get_text,config_keys_action},
       {change_bios_reboot_get_text,change_bios_reboot_action},
       {help_get_text,help_action},
@@ -532,6 +561,7 @@ menu_run (
       {quit_mmenu_get_text,quit_mmenu_action},
       {screen_size_get_text,screen_size_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {config_keys_get_text,config_keys_action},
       {change_bios_get_text,change_bios_action},
       {help_get_text,help_action},
@@ -542,6 +572,7 @@ menu_run (
     {
       {resume_get_text,resume_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {help_get_text,help_action},
       {quit_mmenu_get_text,quit_mmenu_action},
       {quit_get_text,quit_action}
@@ -551,6 +582,7 @@ menu_run (
     {
       {resume_get_text,resume_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {change_bios_reboot_get_text,change_bios_reboot_action},
       {help_get_text,help_action},
       {quit_get_text,quit_action}
@@ -560,6 +592,7 @@ menu_run (
     {
       {quit_mmenu_get_text,quit_mmenu_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {change_bios_get_text,change_bios_action},
       {help_get_text,help_action},
       {quit_get_text,quit_action}
@@ -567,14 +600,14 @@ menu_run (
   
   static const menumode_t menus[]=
     {
-      { 7, menu_ingame_mainmenu },
-      { 7, menu_ingame_nomainmenu },
-      { 7, menu_mainmenu },
-      { 5, menu_ingame_mainmenu_bg },
-      { 5, menu_ingame_nomainmenu_bg },
-      { 5, menu_mainmenu_bg }
+      { 8, menu_ingame_mainmenu },
+      { 8, menu_ingame_nomainmenu },
+      { 8, menu_mainmenu },
+      { 6, menu_ingame_mainmenu_bg },
+      { 6, menu_ingame_nomainmenu_bg },
+      { 6, menu_mainmenu_bg }
     };
-
+  
   const gulong delay1= 200000;
   const gulong delay2= 100000;
   
