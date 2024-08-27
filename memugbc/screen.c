@@ -68,6 +68,7 @@ static struct
   int *buffer;
   void (*scaler) (const int *,int *,const int,const int);
   int width,height;
+  int factor;
   
 } _scaler;
 
@@ -148,14 +149,17 @@ set_scaler (
     {
       
     case SCALER_SCALE2X:
+      _scaler.factor= 2;      
       _scaler.width= WIDTH*2;
       _scaler.height= HEIGHT*2;
       _scaler.scaler= s2d_scale2x;
       _scaler.buffer= g_new0 ( int, _scaler.width*_scaler.height );
+      
       break;
       
     case SCALER_NONE:
     default:
+      _scaler.factor= 1;
       _scaler.width= WIDTH;
       _scaler.height= HEIGHT;
       _scaler.scaler= NULL;
@@ -216,8 +220,30 @@ screen_next_event (
         	   SDL_Event *event
         	   )
 {
-  return windowfb_next_event ( event );
-} /* end screen_next_event */
+
+  gboolean ret;
+  
+  
+  ret= windowfb_next_event ( event );
+  if ( ret )
+    {
+      switch ( event->type )
+        {
+        case SDL_MOUSEMOTION:
+          event->motion.x/= _scaler.factor;
+          event->motion.y/= _scaler.factor;
+          break;
+        case SDL_MOUSEBUTTONDOWN:
+        case SDL_MOUSEBUTTONUP:
+          event->button.x/= _scaler.factor;
+          event->button.y/= _scaler.factor;
+          break;
+        }
+    }
+  
+  return ret;
+  
+} // end screen_next_event
 
 
 void
@@ -308,3 +334,12 @@ screen_get_last_fb (void)
 {
   return _last_fb;
 } /* end screen_get_last_fb */
+
+
+void
+screen_enable_cursor (
+                      const bool enable
+                      )
+{
+  windowfb_enable_cursor ( enable, false );
+} // end screen_enable_cursor

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2022 Adrià Giménez Pastor.
+ * Copyright 2015-2024 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -36,10 +36,16 @@
 #define K_SELECT 0x80
 #define K_BUTTON (K_BUTA|K_BUTB|K_START|K_SELECT)
 
+// S'utilitza per a processar els events del ratolí.
+typedef void (*mpad_mouse_callback_t) (SDL_Event *event, void *);
+
 void
 mpad_clear (void);
 
 int
-mpad_check_buttons (void);
+mpad_check_buttons (
+                    mpad_mouse_callback_t  cb, // Pot ser NULL
+                    void                  *udata // Pot ser NULL
+                    );
 
-#endif /* __MPAD_H__ */
+#endif // __MPAD_H__

@@ -260,6 +260,14 @@ check_signals (
         *stop= GBC_TRUE;
         return;
 
+      case SDL_MOUSEBUTTONDOWN:
+        if ( event.button.button == SDL_BUTTON_RIGHT )
+          {
+            *stop= GBC_TRUE;
+            return;
+          }
+        break;
+        
         /* Tecles ràpides. No hi ha BREAK APOSTA!!! D'aquesta manera
            es passa al pad. */
       case SDL_KEYDOWN:
@@ -319,6 +327,7 @@ loop (void)
   GBC_Bool stop;
   
 
+  screen_enable_cursor ( true );
   stop= GBC_FALSE;
   t0= g_get_monotonic_time ();
   cc_iter= (int) ((GBC_CICLES_PER_SEC/1000000.0)*SLEEP + 0.5);

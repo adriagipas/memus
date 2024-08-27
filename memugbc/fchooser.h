@@ -76,6 +76,18 @@ typedef struct
 
   // Frame buffer.
   int              fb[WIDTH*HEIGHT];
+
+  int              mouse_x;
+  int              mouse_y;
+  bool             mouse_hide;
+  int              mouse_counter;
+  int              mouse_color_black;
+  int              mouse_color_white;
+  enum {
+    MOUSE_NO_ACTION,
+    MOUSE_SEL_ENTRY,
+    MOUSE_ESCAPE
+  }                mouse_action;
   
 } fchooser_t;
 

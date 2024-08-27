@@ -85,4 +85,9 @@ screen_show_error (
 const int *
 screen_get_last_fb (void);
 
-#endif /* __SCREEN_H__ */
+void
+screen_enable_cursor (
+                      const bool enable
+                      );
+
+#endif // __SCREEN_H__

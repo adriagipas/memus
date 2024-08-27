@@ -29,6 +29,7 @@
 #include <string.h>
 
 #include "conf.h"
+#include "cursor.h"
 #include "effects.h"
 #include "fchooser.h"
 #include "hud.h"
@@ -41,25 +42,49 @@
 
 
 
+/**********/
+/* MACROS */
+/**********/
+
+#define MOUSE_COUNTER 200
+
+
+
+
 /*********/
 /* TIPUS */
 /*********/
 
+typedef struct menuitem menuitem_t;
+
+typedef struct
+{
+  int               N;
+  int               current;
+  const menuitem_t *menu;
+  int               ret_mouse;
+  int               mouse_x;
+  int               mouse_y;
+  bool              mouse_hide;
+  int               mouse_counter;
+} menu_state_t;
+
 /* Valor que torna action. */
 enum {
+  NO_ACTION,
   CONTINUE,
   RESUME,
   QUIT,
   QUIT_MAINMENU
 };
 
-typedef struct
+struct menuitem
 {
   
   const char * (*get_text) (void);
-  int          (*action) (void);
+  int          (*action) (menu_state_t *mst);
   
-} menuitem_t;
+};
 
 typedef struct
 {
@@ -92,6 +117,8 @@ static struct
   int x,y;
   int fgcolor;
   int selcolor;
+  int cursor_black;
+  int cursor_white;
   
 } _style;
 
@@ -123,13 +150,30 @@ static void
 draw_background (void)
 {
   memcpy ( _fb, _background, sizeof(_background) );
-} /* end draw_background */
+} // end draw_background
+
+
+static void
+draw_cursor (
+             menu_state_t *mst
+             )
+{
+
+  if ( !mst->mouse_hide )
+    {
+      cursor_draw ( _fb, WIDTH, HEIGHT,
+                    mst->mouse_x, mst->mouse_y,
+                    _style.cursor_black, _style.cursor_white );
+      if ( --(mst->mouse_counter) == 0 )
+        mst->mouse_hide= true;
+    }
+  
+} // end draw_cursor
+
 
 static void
 draw_menu (
-           const menuitem_t menu[],
-           const int        N,
-           const int        selected
+           menu_state_t *mst
            )
 {
   
@@ -137,21 +181,128 @@ draw_menu (
   
   
   draw_background ();
-  for ( i= 0, y= _style.y; i < N; ++i, ++y )
-    if ( i == selected )
+  for ( i= 0, y= _style.y; i < mst->N; ++i, ++y )
+    if ( i == mst->current )
       {
         /*
         tiles8b_draw_string ( _fb, WIDTH, ">", _style.x, y,
         		      _style.selcolor, 0, BG_TRANS );
         */
-        tiles8b_draw_string ( _fb, WIDTH, menu[i].get_text (), _style.x+1, y,
+        tiles8b_draw_string ( _fb, WIDTH, mst->menu[i].get_text (),
+                              _style.x+1, y,
         		      _style.selcolor, 0, BG_TRANS );
       }
-    else tiles8b_draw_string ( _fb, WIDTH, menu[i].get_text (), _style.x+1, y,
+    else tiles8b_draw_string ( _fb, WIDTH, mst->menu[i].get_text (),
+                               _style.x+1, y,
         		       _style.fgcolor, 0, BG_TRANS );
+  draw_cursor ( mst );
   screen_update ( _fb, NULL );
   
-} /* end draw_menu */
+} // end draw_menu
+
+
+// Torna -1 si no s'està apuntat a ninguna
+static int
+translate_mousexy2entry (
+                         const int x,
+                         const int y,
+                         const int nentries
+                         )
+{
+
+  int x0,xf,y0,yf,ret;
+
+
+  x0= (_style.x+1)*8;
+  xf= WIDTH - (_style.x+1)*8;
+  y0= _style.y*8;
+  yf= y0 + nentries*8;
+  if ( x >= x0 && x < xf && y >= y0 && y < yf )
+    ret= (y-y0)/8;
+  else ret= -1;
+  
+  return ret;
+  
+} // translate_mousexy2entry
+
+
+static void
+mouse_update_pos (
+                  menu_state_t *mst,
+                  const int     x,
+                  const int     y
+                  )
+{
+
+  mst->mouse_x= x;
+  mst->mouse_y= y;
+  mst->mouse_hide= false;
+  mst->mouse_counter= MOUSE_COUNTER;
+  
+} // end mouse_update_pos
+
+
+static void
+mouse_cb (
+          SDL_Event *event,
+          void      *udata
+          )
+{
+
+  int sel;
+  menu_state_t *mst;
+  
+  
+  mst= (menu_state_t *) udata;
+  if ( mst->ret_mouse == NO_ACTION )
+    {
+      switch ( event->type )
+        {
+        case SDL_MOUSEBUTTONUP:
+          mouse_update_pos ( mst, event->button.x, event->button.y );
+          break;
+        case SDL_MOUSEMOTION:
+          mouse_update_pos ( mst, event->motion.x, event->motion.y );
+          break;
+        case SDL_MOUSEBUTTONDOWN:
+          mouse_update_pos ( mst, event->button.x, event->button.y );
+          switch ( event->button.button )
+            {
+              // Botó esquerre
+            case SDL_BUTTON_LEFT:
+              sel= translate_mousexy2entry ( event->button.x,
+                                             event->button.y,
+                                             mst->N );
+              if ( sel != -1 )
+                {
+                  mst->current= sel;
+                  if ( event->button.clicks > 1 )
+                    {
+                      mst->ret_mouse= mst->menu[sel].action ( mst );
+                      mpad_clear (); // neteja botons
+                    }
+                }
+              break;
+              // Botó dret.
+            case SDL_BUTTON_RIGHT:
+              mst->ret_mouse= RESUME;
+              break;
+            }
+          break;
+        case SDL_MOUSEWHEEL:
+          if ( event->wheel.y > 0 )
+            {
+              if ( mst->current > 0 ) --(mst->current);
+            }
+          else if ( event->wheel.y < 0 )
+            {
+              if ( mst->current < mst->N-1 ) ++(mst->current);
+            }
+          break;
+        }
+    }
+  
+} // end mouse_cb
 
 
 
@@ -168,10 +319,12 @@ resume_get_text (void)
 
 
 static int
-resume_action (void)
+resume_action (
+               menu_state_t *mst
+               )
 {
   return RESUME;
-} /* end resume_action */
+} // end resume_action
 
 
 static const char *
@@ -193,7 +346,9 @@ screen_size_get_text (void)
 
 
 static int
-screen_size_action (void)
+screen_size_action (
+                    menu_state_t *mst
+                    )
 {
   
   if ( ++(_conf->screen_size) == SCREEN_SIZE_SENTINEL )
@@ -202,11 +357,11 @@ screen_size_action (void)
   
   return CONTINUE;
   
-} /* end screen_size_action */
+} // end screen_size_action
 
 
 static const char *
-change_scaler_get_text ()
+change_scaler_get_text (void)
 {
   
   static const char * const text[]=
@@ -221,7 +376,9 @@ change_scaler_get_text ()
 
 
 static int
-change_scaler_action (void)
+change_scaler_action (
+                      menu_state_t *mst
+                      )
 {
   
   if ( ++(_conf->scaler) == SCALER_SENTINEL )
@@ -230,11 +387,11 @@ change_scaler_action (void)
   
   return CONTINUE;
   
-} /* end change_scaler_action */
+} // end change_scaler_action
 
 
 static const char *
-change_vsync_get_text ()
+change_vsync_get_text (void)
 {
   
   static const char * const text[]=
@@ -249,7 +406,9 @@ change_vsync_get_text ()
 
 
 static int
-change_vsync_action (void)
+change_vsync_action (
+                     menu_state_t *mst
+                     )
 {
 
   _conf->vsync= !_conf->vsync;
@@ -268,7 +427,9 @@ config_keys_get_text (void)
 
 
 static int
-config_keys_action (void)
+config_keys_action (
+                    menu_state_t *mst
+                    )
 {
   
   static const char * const text[]=
@@ -331,7 +492,7 @@ config_keys_action (void)
   
   return CONTINUE;
   
-} /* end config_keys_action */
+} // end config_keys_action
 
 
 static const char *
@@ -341,14 +502,12 @@ help_get_text (void)
 } /* end help_get_text */
 
 
-static int
-help_action (void)
+static void
+draw_help (
+           menu_state_t *mst
+           )
 {
-
-  SDL_Event event;
-
   
-  /* Dibuixa. */
   draw_background ();
   tiles8b_draw_string ( _fb, WIDTH, "AJUDA", 7, 3,
                         _style.selcolor, 0, BG_TRANS );
@@ -362,11 +521,25 @@ help_action (void)
                         _style.fgcolor, 0, BG_TRANS );
   tiles8b_draw_string ( _fb, WIDTH, "MENu:      ESC", 1, 14,
                         _style.fgcolor, 0, BG_TRANS );
+  draw_cursor ( mst );
   screen_update ( _fb, NULL );
   
-  /* Llig events. */
+} // end draw_help
+
+
+static int
+help_action (
+             menu_state_t *mst
+             )
+{
+
+  SDL_Event event;
+  
+  
   for (;;)
     {
+      draw_help ( mst );
+      g_usleep ( 10000 );
       while ( screen_next_event ( &event ) )
         switch ( event.type )
           {
@@ -377,14 +550,24 @@ help_action (void)
                       event.key.keysym.sym == SDLK_q )
               return QUIT;
             break;
+          case SDL_MOUSEBUTTONDOWN:
+            mouse_update_pos ( mst, event.button.x, event.button.y );
+            if ( event.button.button == SDL_BUTTON_RIGHT )
+              return CONTINUE;
+            break;
+          case SDL_MOUSEBUTTONUP:
+            mouse_update_pos ( mst, event.button.x, event.button.y );
+            break;
+          case SDL_MOUSEMOTION:
+            mouse_update_pos ( mst, event.motion.x, event.motion.y );
+            break;
           default: break;
           }
-      g_usleep ( 100000 );
     }
   
   return CONTINUE;
     
-} /* end help_action */
+} // end help_action
 
 
 static const char *
@@ -395,10 +578,12 @@ quit_get_text (void)
 
 
 static int
-quit_action (void)
+quit_action (
+             menu_state_t *mst
+             )
 {
   return QUIT;
-} /* end quit_action */
+} // end quit_action
 
 
 static const char *
@@ -409,10 +594,12 @@ quit_mmenu_get_text (void)
 
 
 static int
-quit_mmenu_action (void)
+quit_mmenu_action (
+                   menu_state_t *mst
+                   )
 {
   return QUIT_MAINMENU;
-} /* end quit_mmenu_action */
+} // end quit_mmenu_action
 
 
 static const char *
@@ -463,7 +650,9 @@ change_bios (
 
 
 static int
-change_bios_action (void)
+change_bios_action (
+                    menu_state_t *mst
+                    )
 {
   return change_bios ( false );
 } // end change_bios_action
@@ -477,7 +666,9 @@ change_bios_reboot_get_text (void)
 
 
 static int
-change_bios_reboot_action (void)
+change_bios_reboot_action (
+                           menu_state_t *mst
+                           )
 {
   return change_bios ( true );
 } // end change_bios_reboot_action
@@ -513,8 +704,10 @@ init_menu (
 #endif
   _style.fgcolor= 0x7FFF; /* Blanc. */
   _style.selcolor= 0x001F; /* Roig. */
+  _style.cursor_black= 0x0000;
+  _style.cursor_white= 0x5EF7;
   
-} /* end init_menu */
+} // end init_menu
 
 
 void
@@ -610,40 +803,50 @@ menu_run (
   
   const gulong delay1= 200000;
   const gulong delay2= 100000;
-  
-  int current, buttons, ret, N;
+
+  menu_state_t mst;
+  int buttons, ret;
   gulong delay;
-  const menuitem_t *menu;
   
 
-  N= menus[mode+_bg_off].N;
-  menu= menus[mode+_bg_off].items;
+  mst.N= menus[mode+_bg_off].N;
+  mst.menu= menus[mode+_bg_off].items;
+  mst.mouse_x= 0;
+  mst.mouse_y= 0;
+  mst.mouse_hide= true;
   init_background ();
-  current= 0;
+  mst.current= 0;
   delay= delay1;
   mpad_clear ();
   hud_hide ();
+  screen_enable_cursor ( true );
   for (;;)
     {
-      draw_menu ( menu, N, current );
+      draw_menu ( &mst );
       g_usleep ( 10000 );
-      buttons= mpad_check_buttons ();
+      mst.ret_mouse= NO_ACTION;
+      buttons= mpad_check_buttons ( mouse_cb, &mst );
+      if ( mst.ret_mouse != NO_ACTION )
+        {
+          if ( mst.ret_mouse != CONTINUE ) { ret= mst.ret_mouse; break; }
+          continue;
+        }
       if ( buttons&K_QUIT ) return MENU_QUIT;
       else if ( buttons&K_ESCAPE )
         return mode==MENU_MODE_MAINMENU ? MENU_QUIT_MAINMENU : MENU_RESUME;
       else if ( buttons&K_BUTTON )
         {
-          ret= menu[current].action ();
-          mpad_clear (); /* neteja botons. */
+          ret= mst.menu[mst.current].action ( &mst );
+          mpad_clear (); // neteja botons.
           if ( ret != CONTINUE ) break;
         }
       else if ( buttons&K_UP )
         {
-          if ( current == 0 ) current= N-1;
-          else --current;
+          if ( mst.current == 0 ) mst.current= mst.N-1;
+          else --mst.current;
         }
-      else if ( buttons&K_DOWN ) current= (current+1)%N;
-      if ( buttons ) /* Descansa un poc. */
+      else if ( buttons&K_DOWN ) mst.current= (mst.current+1)%mst.N;
+      if ( buttons ) // Descansa un poc.
         {
           g_usleep ( delay );
           delay= delay2;
@@ -651,9 +854,9 @@ menu_run (
       else delay= delay1;
     }
   
-  /* Ací no pot ser CONTINUE. */
+  // Ací no pot ser CONTINUE.
   return
     (ret==RESUME) ? MENU_RESUME :
     ((ret==QUIT) ? MENU_QUIT : MENU_QUIT_MAINMENU);
   
-} /* end menu_run */
+} // end menu_run

@@ -26,6 +26,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include "cursor.h"
 #include "dirs.h"
 #include "effects.h"
 #include "error.h"
@@ -47,6 +48,12 @@
 #define FCBANNER_CDIR_WIDTH (WIDTH-16-2)
 #define FCBANNER_WIDTH (FCBANNER_CDIR_WIDTH-8)
 
+#define MOUSE_COUNTER 100
+
+#define ENTRY_BEGIN_Y 18
+#define ENTRY_HEIGHT 10
+#define OFFY 8
+
 
 
 
@@ -62,11 +69,19 @@ static const unsigned char FOLDER[8]=
 
 
 
-/*********/
-/* ESTAT */
-/*********/
+/*****************/
+/* DECLARACIONS */
+/****************/
 
+static void
+fchooser_move_up (
+                  fchooser_t *fc
+                  );
 
+static void
+fchooser_move_down (
+                    fchooser_t *fc
+                    );
 
 
 
@@ -74,6 +89,134 @@ static const unsigned char FOLDER[8]=
 /*********************/
 /* FUNCIONS PRIVADES */
 /*********************/
+
+static void
+fchooser_draw_cursor (
+                      fchooser_t *fc
+                      )
+{
+
+  if ( !fc->mouse_hide )
+    {
+      cursor_draw ( fc->fb, WIDTH, HEIGHT,
+                    fc->mouse_x, fc->mouse_y,
+                    fc->mouse_color_black,
+                    fc->mouse_color_white );
+      if ( --(fc->mouse_counter) == 0 )
+        fc->mouse_hide= true;
+    }
+  
+} // end fchooser_draw_cursor
+
+
+static int
+fchooser_translate_mousexy2entry (
+                                  fchooser_t *fc,
+                                  const int   x,
+                                  const int   y
+                                  )
+{
+  
+  int x0,xf,y0,yf,nentries,ret,tmp;
+
+
+  x0= 8;
+  xf= WIDTH - 16;
+  nentries= fc->last-fc->first+1;
+  y0= OFFY+ENTRY_BEGIN_Y;
+  yf= y0 + nentries*(ENTRY_HEIGHT+1);
+  if ( x >= x0 && x < xf && y >= y0 && y < yf )
+    {
+      tmp= y-y0;
+      if ( tmp%(ENTRY_HEIGHT+1) == ENTRY_HEIGHT )
+        ret= -1;
+      else
+        ret= fc->first + tmp/(ENTRY_HEIGHT+1);
+    }
+  else ret= -1;
+  
+  return ret;
+  
+} // fchooser_translate_mousexy2entry
+
+
+static void
+fchooser_mouse_update_pos (
+                           fchooser_t *fc,
+                           const int   x,
+                           const int   y
+                           )
+{
+
+  fc->mouse_x= x;
+  fc->mouse_y= y;
+  fc->mouse_hide= false;
+  fc->mouse_counter= MOUSE_COUNTER;
+  
+} // end fchooser_mouse_update_pos
+
+
+static void
+mouse_cb (
+          SDL_Event *event,
+          void      *udata
+          )
+{
+
+  int sel;
+  fchooser_t *fc;
+  
+  
+  fc= (fchooser_t *) udata;
+  if ( fc->mouse_action == MOUSE_NO_ACTION )
+    {
+      switch ( event->type )
+        {
+        case SDL_MOUSEBUTTONUP:
+          fchooser_mouse_update_pos ( fc, event->button.x, event->button.y );
+          break;
+        case SDL_MOUSEMOTION:
+          fchooser_mouse_update_pos ( fc, event->motion.x, event->motion.y );
+          break;
+        case SDL_MOUSEBUTTONDOWN:
+          fchooser_mouse_update_pos ( fc, event->button.x, event->button.y );
+          switch ( event->button.button )
+            {
+              // Botó esquerre
+            case SDL_BUTTON_LEFT:
+              sel= fchooser_translate_mousexy2entry ( fc, event->button.x,
+                                                      event->button.y );
+              if ( sel != -1 )
+                {
+                  if ( sel < fc->current )
+                    {
+                      while ( sel < fc->current )
+                        fchooser_move_up ( fc );
+                    }
+                  else if ( sel > fc->current )
+                    {
+                      while ( sel > fc->current )
+                        fchooser_move_down ( fc );
+                    }
+                  if ( event->button.clicks > 1 )
+                    fc->mouse_action= MOUSE_SEL_ENTRY;
+                }
+              break;
+              // Botó dret.
+            case SDL_BUTTON_RIGHT:
+              fc->mouse_action= MOUSE_ESCAPE;
+              break;
+            }
+          break;
+        case SDL_MOUSEWHEEL:
+          if ( event->wheel.y > 0 ) fchooser_move_up ( fc );
+          else if ( event->wheel.y < 0 ) fchooser_move_down ( fc );
+          break;
+        }
+    }
+  
+} // end mouse_cb
+
 
 static void
 draw_background (
@@ -471,8 +614,6 @@ fchooser_draw (
                )
 {
   
-  static const int OFFY= 8;
-  
   guint n;
   int offy;
   const fchooser_node_t *node;
@@ -487,25 +628,28 @@ fchooser_draw (
         	       fc->fgcolor_cdir, 0, T8BISO_BG_TRANS );
 
   // Entrades.
-  offy= OFFY+18;
+  offy= OFFY+ENTRY_BEGIN_Y;
   for ( n= fc->first; n <= fc->last; ++n )
     {
       node= &(fc->v[n]);
-      effect_interpolate_color ( fc->fb, 8, offy,
-                                 WIDTH-16, 10, 0x7FFF, 0.60 );
+      effect_interpolate_color ( fc->fb, 8, offy, WIDTH-16,
+                                 ENTRY_HEIGHT, 0x7FFF, 0.60 );
       if ( node->is_dir ) draw_folder ( fc, 8, offy, fc->fgcolor_entry );
       t8biso_banner_draw ( node->banner, fc->fb, WIDTH, 8+9, offy+1,
         		   (n==fc->current) ?
         		   fc->fgcolor_selected_entry :
         		   fc->fgcolor_entry,
         		   0, T8BISO_BG_TRANS );
-      offy+= 11; // 1 píxel blanc.
+      offy+= ENTRY_HEIGHT+1; // 1 píxel blanc.
     }
 
   // Barra lliscant
   if ( fc->N > FCNVIS )
     draw_scrollbar ( fc, WIDTH-5, OFFY+18, 2, 11*FCNVIS-1, fc->first,
         	     FCNVIS, fc->N, fc->fgcolor_sc );
+
+  // Ratolí.
+  fchooser_draw_cursor ( fc );
   
   // Updateja.
   screen_update ( fc->fb, NULL );
@@ -542,6 +686,30 @@ error_dialog_draw (
   screen_update ( fc->fb, NULL );
   
 } // end error_dialog_draw
+
+
+static void
+mouse_error_cb (
+                SDL_Event *event,
+                void      *udata
+                )
+{
+  
+  fchooser_t *fc;
+  
+  
+  fc= (fchooser_t *) udata;
+  if ( fc->mouse_action == MOUSE_NO_ACTION )
+    {
+      switch ( event->type )
+        {
+        case SDL_MOUSEBUTTONDOWN:
+          fc->mouse_action= MOUSE_ESCAPE;
+          break;
+        }
+    }
+  
+} // end mouse_error_cb
 
 
 
@@ -613,6 +781,14 @@ fchooser_new (
   
   fchooser_fill_entries ( new );
 
+  new->mouse_x= 0;
+  new->mouse_y= 0;
+  new->mouse_hide= true;
+  new->mouse_counter= 0;
+  new->mouse_color_black= 0x0000;
+  new->mouse_color_white= 0x5EF7;
+  screen_enable_cursor ( true );
+  
   return new;
   
 } // end fchooser_new
@@ -638,11 +814,14 @@ fchooser_run (
       mpad_clear ();
       fchooser_draw ( fc );
       g_usleep ( 20000 ); // 20ms
-      
-      buttons= mpad_check_buttons ();
+
+      fc->mouse_action= MOUSE_NO_ACTION;
+      buttons= mpad_check_buttons ( mouse_cb, (void *) fc );
       if ( buttons&K_QUIT ) { *quit= true; return NULL; }
-      else if ( buttons&K_ESCAPE ) return NULL;
-      else if ( buttons&K_BUTTON )
+      else if ( buttons&K_ESCAPE ||
+                fc->mouse_action == MOUSE_ESCAPE ) return NULL;
+      else if ( buttons&K_BUTTON ||
+                fc->mouse_action == MOUSE_SEL_ENTRY )
         {
           ret= fchooser_select_current_file ( fc );
           if ( ret != NULL ) break;
@@ -673,7 +852,7 @@ fchooser_error_dialog (
     {
       mpad_clear ();
       g_usleep ( 20000 );
-      buttons= mpad_check_buttons ();
+      buttons= mpad_check_buttons ( mouse_error_cb, (void *) fc );
       if ( buttons&K_QUIT ) return -1;
       else if ( buttons&(K_ESCAPE|K_BUTTON) ) return 0;
     }

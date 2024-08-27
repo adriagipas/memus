@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2022 Adrià Giménez Pastor.
+ * Copyright 2015-2024 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -47,7 +47,10 @@ mpad_clear (void)
 
 
 int
-mpad_check_buttons (void)
+mpad_check_buttons (
+                    mpad_mouse_callback_t  cb,
+                    void                  *udata
+                    )
 {
   
   SDL_Event event;
@@ -55,10 +58,16 @@ mpad_check_buttons (void)
   GBC_Bool junk;
   
   
-  /* Comprova tecles. */
+  // Comprova tecles.
   while ( screen_next_event ( &event ) )
     switch ( event.type )
       {
+      case SDL_MOUSEMOTION:
+      case SDL_MOUSEBUTTONDOWN:
+      case SDL_MOUSEBUTTONUP:
+      case SDL_MOUSEWHEEL:
+        if ( cb != NULL ) cb ( &event, udata );
+        break;
       case SDL_QUIT: return K_QUIT;
       case SDL_KEYDOWN:
         if ( event.key.keysym.mod&KMOD_CTRL &&
@@ -68,7 +77,7 @@ mpad_check_buttons (void)
         if ( pad_event ( &event, &junk, &junk ) ) return K_ESCAPE;
       }
   
-  /* Reinterpreta les tecles del pad. */
+  // Reinterpreta les tecles del pad.
   aux= pad_check_buttons ( NULL );
   ret= 0;
   if ( aux&GBC_UP ) ret|= K_UP;
@@ -80,4 +89,4 @@ mpad_check_buttons (void)
   
   return ret;
   
-} /* end mpad_check_buttons */
+} // end mpad_check_buttons

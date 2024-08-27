@@ -1,4 +1,5 @@
 COMMON= static_library('common',
+                       'cursor.c', 'cursor.h',
                        'error.c','error.h','filesel.c','filesel.h',
                        'scalers2d.c','scalers2d.h','windowfb.c','windowfb.h',
                        'windowtex.c','windowtex.h',
