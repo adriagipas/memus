@@ -35,8 +35,10 @@
 #include "error.h"
 #include "frontend.h"
 #include "load_bios.h"
+#include "lock.h"
 #include "mainmenu.h"
 #include "rom.h"
+#include "session.h"
 
 
 
@@ -67,6 +69,7 @@ struct opts
   gboolean  verbose;
   gboolean  print_header;
   gboolean  print_id;
+  gchar    *session_name;
   gchar    *conf_fn;
   gchar    *title;
   gchar    *set_bios_fn;
@@ -98,6 +101,7 @@ usage (
       FALSE,    /* verbose */
       FALSE,    /* print_header */
       FALSE,    /* print_id */
+      NULL,     // session_name
       NULL,     /* conf_fn */
       NULL,     /* title */
       NULL,     /* set_bios_fn */
@@ -115,6 +119,7 @@ usage (
       { "bios", 'b', 0, G_OPTION_ARG_STRING, &vals.set_bios_fn,
         "Fixa com a bios BIOS. La bios es manté entre execucions",
         "BIOS" },
+
       { "conf", 'c', 0, G_OPTION_ARG_STRING, &vals.conf_fn,
         "Empra com a fitxer de configuració CONF. Si es passa una ROM"
         " fa referència al fitxer de configuració de la ROM, sinó fa"
@@ -129,6 +134,11 @@ usage (
       { "print-id", 'I', 0, G_OPTION_ARG_NONE, &vals.print_id,
         "Imprimeix l'identificador de la ROM i surt (sols amb ROM)",
         NULL },
+      { "session", G_OPTION_ARG_NONE, 0, G_OPTION_ARG_STRING,
+        &vals.session_name,
+        "Nom de la sessió. Cada sessió manté un conjunt de fitxers"
+        " de configuració i desat separats. Per defecte la sessió estàndard",
+        "NAME" },
       { "sram", 's', 0, G_OPTION_ARG_STRING, &vals.sram_fn,
         "Empra com a memòria estàtica SRAM (sols amb ROM)",
         "SRAM" },
@@ -172,7 +182,8 @@ free_opts (
            struct opts *opts
            )
 {
-  
+
+  if ( opts->session_name != NULL ) g_free ( opts->session_name );
   if ( opts->conf_fn != NULL ) g_free ( opts->conf_fn );
   if ( opts->title != NULL ) g_free ( opts->title );
   if ( opts->set_bios_fn != NULL ) g_free ( opts->set_bios_fn );
@@ -246,6 +257,35 @@ print_header (
 } /* end print_header */
 
 
+static gchar *
+get_title (
+           const gchar *title
+           )
+{
+  
+  gchar *ret;
+  const char *sname;
+  GString *buf;
+
+  
+  if ( title == NULL )
+    {
+      sname= session_get_name ();
+      if ( sname != NULL )
+        {
+          buf= g_string_new ( NULL );
+          g_string_printf ( buf, "memuGBC (%s)", sname );
+          ret= g_string_free_and_steal ( buf );
+        }
+      else ret= g_strdup ( "memuGBC" );
+    }
+  else ret= g_strdup ( title );
+
+  return ret;
+  
+} // end get_title
+
+
 static void
 run_with_rom (
               const struct args *args,
@@ -259,9 +299,10 @@ run_with_rom (
   const char *rom_id;
   conf_t conf;
   menu_response_t response;
+  gchar *title;
   
-
-  /* Carrega la ROM. */
+  
+  // Carrega la ROM.
   if ( load_rom ( args->rom_fn, &rom, opts->verbose ) != 0 )
     error ( "no s'ha pogut carregar la ROM de '%s'", args->rom_fn );
   GBC_rom_get_header ( &rom, &header );
@@ -277,36 +318,40 @@ run_with_rom (
       goto quit;
     }
   
-  /* Inicialitza. */
-  init_dirs ();
-  get_conf ( &conf, rom_id, opts->conf_fn, NULL, opts->verbose );
-  if ( opts->set_bios_fn != NULL )
-    conf_set_bios_fn ( &conf, opts->set_bios_fn );
-  if ( opts->unset_bios_fn ) conf_set_bios_fn ( &conf, NULL );
-  bios= load_bios ( &conf, opts->verbose );
-  init_frontend ( &conf,
-        	  opts->title==NULL ? "memuGBC" : opts->title,
-                  &bios,
-        	  opts->big_screen,
-                  opts->verbose );
+  // Inicialitza.
+  init_session ( opts->session_name, opts->verbose );
+  if ( init_lock ( rom_id, opts->verbose ) )
+    {
+      init_dirs ();
+      get_conf ( &conf, rom_id, opts->conf_fn, NULL, opts->verbose );
+      if ( opts->set_bios_fn != NULL )
+        conf_set_bios_fn ( &conf, opts->set_bios_fn );
+      if ( opts->unset_bios_fn ) conf_set_bios_fn ( &conf, NULL );
+      bios= load_bios ( &conf, opts->verbose );
+      title= get_title ( opts->title );
+      init_frontend ( &conf, title, &bios, opts->big_screen, opts->verbose );
+      g_free ( title );
   
-  /* Executa. */
-  do {
-    if ( frontend_run ( &rom, rom_id, opts->sram_fn,
-                        opts->state_prefix, MENU_MODE_INGAME_NOMAINMENU,
-                        &response ) == -1 )
-      error ( "no s'ha pogut executar la ROM '%s'", args->rom_fn );
-  } while ( response == MENU_QUIT_MAINMENU );
+      // Executa.
+      do {
+        if ( frontend_run ( &rom, rom_id, opts->sram_fn,
+                            opts->state_prefix, MENU_MODE_INGAME_NOMAINMENU,
+                            &response ) == -1 )
+          error ( "no s'ha pogut executar la ROM '%s'", args->rom_fn );
+      } while ( response == MENU_QUIT_MAINMENU );
   
-  /* Allibera memòria i tanca. */
-  close_frontend ();
-  write_conf ( &conf, rom_id, opts->conf_fn, opts->verbose );
-  free_conf ( &conf );
-  close_dirs ();
+      // Allibera memòria i tanca.
+      close_frontend ();
+      write_conf ( &conf, rom_id, opts->conf_fn, opts->verbose );
+      free_conf ( &conf );
+      close_dirs ();
+      close_lock ();
+    }
+  close_session ();
  quit:
   GBC_rom_free ( rom );
   
-} /* end run_with_rom */
+} // end run_with_rom
 
 
 static void
@@ -318,26 +363,35 @@ run_without_rom (
 
   conf_t conf;
   const GBCu8 *bios;
+  gchar *title;
   
 
-  /* Inicialitza. */
-  init_dirs ();
-  get_default_conf ( &conf, opts->conf_fn, opts->verbose );
-  if ( opts->set_bios_fn != NULL )
-    conf_set_bios_fn ( &conf, opts->set_bios_fn );
-  if ( opts->unset_bios_fn ) conf_set_bios_fn ( &conf, NULL );
-  bios= load_bios ( &conf, opts->verbose );
-  init_frontend ( &conf, "memuGBC", &bios, opts->big_screen, opts->verbose );
+  // Inicialitza.
+  init_session ( opts->session_name, opts->verbose );
+  if ( init_lock ( NULL, opts->verbose ) )
+    {
+      init_dirs ();
+      get_default_conf ( &conf, opts->conf_fn, opts->verbose );
+      if ( opts->set_bios_fn != NULL )
+        conf_set_bios_fn ( &conf, opts->set_bios_fn );
+      if ( opts->unset_bios_fn ) conf_set_bios_fn ( &conf, NULL );
+      bios= load_bios ( &conf, opts->verbose );
+      title= get_title ( NULL );
+      init_frontend ( &conf, title, &bios, opts->big_screen, opts->verbose );
+      g_free ( title );
+      
+      // Executa.
+      main_menu ( &conf, opts->verbose );
   
-  /* Executa. */
-  main_menu ( &conf, opts->verbose );
+      // Allibera memòria i tanca.
+      close_frontend ();
+      write_default_conf ( &conf, opts->conf_fn, opts->verbose );
+      close_dirs ();
+      close_lock ();
+    }
+  close_session ();
   
-  /* Allibera memòria i tanca. */
-  close_frontend ();
-  write_default_conf ( &conf, opts->conf_fn, opts->verbose );
-  close_dirs ();
-  
-} /* end run_without_rom */
+} // end run_without_rom
 
 
 

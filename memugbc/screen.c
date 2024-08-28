@@ -30,6 +30,7 @@
 #include "error.h"
 #include "hud.h"
 #include "icon.h"
+#include "lock.h"
 #include "scalers2d.h"
 #include "screen.h"
 #include "windowfb.h"
@@ -223,6 +224,9 @@ screen_next_event (
 
   gboolean ret;
   
+
+  if ( lock_check_signals () )
+    windowfb_raise ();
   
   ret= windowfb_next_event ( event );
   if ( ret )
