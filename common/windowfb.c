@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2022 Adrià Giménez Pastor.
+ * Copyright 2016-2024 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -189,7 +189,7 @@ init_sdl (
                                SDL_WINDOWPOS_UNDEFINED,
                                SDL_WINDOWPOS_UNDEFINED,
                                _sdl.wwidth, _sdl.wheight,
-        		       0 );
+        		       SDL_WINDOW_HIDDEN );
   if ( _sdl.win == NULL )
     error ( "no s'ha pogut crear la finestra: %s", SDL_GetError () );
   _sdl.pfmt= SDL_GetWindowPixelFormat ( _sdl.win );

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Adrià Giménez Pastor.
+ * Copyright 2020-2024 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -123,6 +123,9 @@ windowtex_get_color (
                     const uint8_t b,
                     const uint8_t a
                     );
+
+void
+windowtex_show (void);
 
 // Textures //
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Adrià Giménez Pastor.
+ * Copyright 2020-2024 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -277,6 +277,8 @@ init_screen (
 
   // Inicialitza frame buffer.
   _fb.tex= NULL;
+
+  windowtex_show ();
   
 } // end init_screen
 

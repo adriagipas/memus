@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Adrià Giménez Pastor.
+ * Copyright 2020-2024 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -249,7 +249,7 @@ init_sdl (
                                SDL_WINDOWPOS_UNDEFINED,
                                SDL_WINDOWPOS_UNDEFINED,
                                _sdl.width, _sdl.height,
-                               0 );
+                               SDL_WINDOW_HIDDEN );
   if ( _sdl.win == NULL )
     error ( "no s'ha pogut crear la finestra: %s", SDL_GetError () );
   _sdl.pfmt= SDL_GetWindowPixelFormat ( _sdl.win );
@@ -532,6 +532,13 @@ windowtex_get_color (
   return ret;
   
 } // end windowtex_get_color
+
+
+void
+windowtex_show (void)
+{
+  SDL_ShowWindow ( _sdl.win );
+} // end windowtex_show
 
 
 void

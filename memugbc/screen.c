@@ -212,6 +212,8 @@ init_screen (
 
   /* Last frame buffer. */
   memset ( _last_fb, 0, sizeof(_last_fb) );
+
+  windowfb_show ();
   
 } /* end init_screen */
 
