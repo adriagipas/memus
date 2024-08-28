@@ -37,7 +37,9 @@ MEMUGBC_FILES= files('background.c',
                      'sram.h',
                      'state.h',
                      'lock.c',
-                     'lock.h')
+                     'lock.h',
+                     'suspend.h',
+                     'suspend.c')
 
 MEMUGBC= executable('memugbc',
                     MEMUGBC_FILES,

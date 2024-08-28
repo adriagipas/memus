@@ -116,7 +116,8 @@ run_romfn (
   
   // Executa.
   ret= frontend_run ( &rom, rom_id, NULL, NULL,
-        	      MENU_MODE_INGAME_MAINMENU, &response );
+        	      MENU_MODE_INGAME_MAINMENU,
+                      fn, &response, _verbose );
   
   // Tanca.
   /*
@@ -157,28 +158,31 @@ main_menu (
   fc= fchooser_new ( "[.]gbc?$", false, _background, verbose );
   
   // Executa.
-  stop= quit= false;
-  while ( !stop )
+  if ( frontend_resume ( MENU_MODE_INGAME_MAINMENU, verbose ) != MENU_QUIT )
     {
-      rom_fn= fchooser_run ( fc, &quit );
-      if ( quit ) stop= true;
-      else if ( rom_fn == NULL )
+      stop= quit= false;
+      while ( !stop )
         {
-          if ( menu_run ( MENU_MODE_MAINMENU ) == MENU_QUIT )
-            stop= true;
-        }
-      else
-        {
-          switch ( run_romfn ( rom_fn ) )
+          rom_fn= fchooser_run ( fc, &quit );
+          if ( quit ) stop= true;
+          else if ( rom_fn == NULL )
             {
-            case ERROR:
-              if ( fchooser_error_dialog ( fc ) == -1 )
+              if ( menu_run ( MENU_MODE_MAINMENU ) == MENU_QUIT )
                 stop= true;
-              break;
-            case QUIT:
-              stop= true;
-              break;
-            default: break;
+            }
+          else
+            {
+              switch ( run_romfn ( rom_fn ) )
+                {
+                case ERROR:
+                  if ( fchooser_error_dialog ( fc ) == -1 )
+                    stop= true;
+                  break;
+                case QUIT:
+                  stop= true;
+                  break;
+                default: break;
+                }
             }
         }
     }

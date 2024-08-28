@@ -587,6 +587,22 @@ quit_action (
 
 
 static const char *
+suspend_get_text (void)
+{
+  return "SUSPeN";
+} // end suspend_get_text
+
+
+static int
+suspend_action (
+             menu_state_t *mst
+             )
+{
+  return QUIT;
+} // end suspend_action
+
+
+static const char *
 quit_mmenu_get_text (void)
 {
   return "TORNA AL MENu";
@@ -600,6 +616,22 @@ quit_mmenu_action (
 {
   return QUIT_MAINMENU;
 } // end quit_mmenu_action
+
+
+static const char *
+shutdown_get_text (void)
+{
+  return "ATURA SIMULADOR";
+} // end shutdown_get_text
+
+
+static int
+shutdown_action (
+                 menu_state_t *mst
+                 )
+{
+  return QUIT_MAINMENU;
+} // end shutdown_action
 
 
 static const char *
@@ -733,8 +765,8 @@ menu_run (
       {change_vsync_get_text,change_vsync_action},
       {config_keys_get_text,config_keys_action},
       {help_get_text,help_action},
-      {quit_mmenu_get_text,quit_mmenu_action},
-      {quit_get_text,quit_action}
+      {shutdown_get_text,shutdown_action},
+      {suspend_get_text,suspend_action}
     };
   
   static const menuitem_t menu_ingame_nomainmenu[]=
@@ -767,8 +799,8 @@ menu_run (
       {change_scaler_get_text,change_scaler_action},
       {change_vsync_get_text,change_vsync_action},
       {help_get_text,help_action},
-      {quit_mmenu_get_text,quit_mmenu_action},
-      {quit_get_text,quit_action}
+      {shutdown_get_text,shutdown_action},
+      {suspend_get_text,suspend_action}
     };
   
   static const menuitem_t menu_ingame_nomainmenu_bg[]=

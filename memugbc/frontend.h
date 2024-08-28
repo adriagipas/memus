@@ -38,7 +38,8 @@ frontend_reconfigure (
                       const char *title
                       );
 
-/* Torna -1 en cas d'error, 0 si tot ha anat bé. */
+// Si rom_fn!=NULL aleshores s'activa la suspensió.
+// Torna -1 si no ha pogut carregar la rom.
 int
 frontend_run (
               const GBC_Rom     *rom,
@@ -46,8 +47,17 @@ frontend_run (
               const char        *sram_fn,
               const char        *state_prefix,
               const menu_mode_t  menu_mode,
-              menu_response_t   *response
+              const gchar       *rom_fn, // Pot ser NULL. Per a la suspensió.
+              menu_response_t   *response,
+              const int          verbose
               );
+
+// Intenta executar una execució suspesa.
+menu_response_t
+frontend_resume (
+                 const menu_mode_t menu_mode,
+                 const gboolean    verbose
+                 );
 
 void
 init_frontend (
@@ -58,4 +68,4 @@ init_frontend (
                const int        verbose
                );
 
-#endif /* __FRONTEND_H__ */
+#endif // __FRONTEND_H__

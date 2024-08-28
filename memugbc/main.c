@@ -336,7 +336,7 @@ run_with_rom (
       do {
         if ( frontend_run ( &rom, rom_id, opts->sram_fn,
                             opts->state_prefix, MENU_MODE_INGAME_NOMAINMENU,
-                            &response ) == -1 )
+                            NULL, &response, opts->verbose ) == -1 )
           error ( "no s'ha pogut executar la ROM '%s'", args->rom_fn );
       } while ( response == MENU_QUIT_MAINMENU );
   

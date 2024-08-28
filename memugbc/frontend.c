@@ -34,10 +34,12 @@
 #include "hud.h"
 #include "menu.h"
 #include "pad.h"
+#include "rom.h"
 #include "screen.h"
 #include "sound.h"
 #include "sram.h"
 #include "state.h"
+#include "suspend.h"
 #include "tiles8b.h"
 #include "t8biso.h"
 
@@ -239,6 +241,46 @@ load_state (
 
 
 static void
+suspend_clear (
+               const gboolean verbose
+               )
+{
+  suspend_write_rom_file_name ( "", verbose );
+} // end suspend_clear
+
+
+static void
+suspend (
+         const gchar    *rom_fn,
+         const gboolean  verbose
+         )
+{
+  
+  FILE *f;
+  
+  
+  // Neteja el nom de la rom.
+  if ( !suspend_write_rom_file_name ( "", verbose ) )
+    return;
+  
+  // Intenta escriure l'estat
+  f= get_suspend_state_file ( true, verbose );
+  if ( f  == NULL ) return;
+  if ( GBC_save_state ( f ) != 0 )
+    {
+      warning ( "No s'ha pogut desar l'estat" );
+      fclose ( f );
+      return;
+    }
+  fclose ( f );
+
+  // Desa el nom de la rom.
+  suspend_write_rom_file_name ( rom_fn, verbose );
+  
+} // end suspend
+
+
+static void
 check_signals (
                GBC_Bool *stop,
                GBC_Bool *button_pressed,
@@ -352,7 +394,110 @@ loop (void)
       
     }
 
-} // end loop 
+} // end loop
+
+
+static int
+frontend_run_common (
+                     const GBC_Rom     *rom,
+                     const char        *rom_id,
+                     const char        *sram_fn,
+                     const char        *state_prefix,
+                     const menu_mode_t  menu_mode,
+                     const gchar       *rom_fn,
+                     bool               resume_exec,
+                     menu_response_t   *response,
+                     const int          verbose
+                     )
+{
+  
+  static const GBC_Frontend frontend=
+    {
+      _warning,
+      sram_get_external_ram,
+      screen_update,
+      check_signals,
+      pad_check_buttons,
+      sound_play,
+      pad_update_rumble,
+      NULL
+    };
+  
+  GBC_Error err;
+  FILE *f;
+  
+  
+  *response= MENU_QUIT_MAINMENU;
+  _quit= FALSE;
+  init_sram ( rom_id, sram_fn, _verbose );
+  init_state ( rom_id, state_prefix, _verbose );
+  err= GBC_init ( *_bios, rom, &frontend, NULL );
+  switch ( err )
+    {
+    case GBC_EUNKMAPPER:
+      warning ( "el mapper de la ROM és desconegut" );
+      goto error;
+    case GBC_WRONGLOGO:
+      warning ( "la ROM no ha passat el test del logotip" );
+      goto error;
+    case GBC_WRONGCHKS:
+      warning ( "la ROM no ha passat el test del checksum" );
+      goto error;
+    case GBC_WRONGRAMSIZE:
+      warning ( "la grandària de la RAM no està suportada" );
+      goto error;
+    case GBC_WRONGROMSIZE:
+      warning ("la grandària de la ROM no està suportada" );
+      goto error;
+    case GBC_NOERROR: break;
+    }
+  if ( resume_exec )
+    {
+      f= get_suspend_state_file ( false, verbose );
+      if ( f == NULL ) goto error_resum_exec;
+      if ( GBC_load_state ( f ) != 0 )
+        {
+          warning ( "No s'ha pogut llegir l'estat, o l'estat no és vàlid" );
+          fclose ( f );
+          goto error_resum_exec;
+        }
+      fclose ( f );
+    }
+  for (;;)
+    {
+      pad_clear ();
+      loop ();
+      if ( _quit )
+        {
+          *response= MENU_QUIT;
+          if ( rom_fn != NULL ) suspend ( rom_fn, verbose );
+          break;
+        }
+      *response= menu_run ( menu_mode );
+      if ( *response != MENU_RESUME )
+        {
+          if ( rom_fn != NULL )
+            {
+              if ( *response == MENU_QUIT ) suspend ( rom_fn, verbose );
+              else                          suspend_clear ( verbose );
+            }
+          break;
+        }
+    }
+  close_sram ();
+
+  return 0;
+
+ error_resum_exec:
+  suspend_clear ( verbose );
+  close_sram ();
+  *response= MENU_QUIT_MAINMENU;
+  return 0;
+ error:
+  close_sram ();
+  return -1;
+  
+} // end frontend_run_common
 
 
 
@@ -397,66 +542,62 @@ frontend_run (
               const char        *sram_fn,
               const char        *state_prefix,
               const menu_mode_t  menu_mode,
-              menu_response_t   *response
+              const gchar       *rom_fn,
+              menu_response_t   *response,
+              const int          verbose
               )
 {
+  return frontend_run_common ( rom, rom_id, sram_fn, state_prefix,
+                               menu_mode, rom_fn, false, response,
+                               verbose );
+} // end frontend_run
+
+
+menu_response_t
+frontend_resume (
+                 const menu_mode_t menu_mode,
+                 const gboolean    verbose
+                 )
+{
   
-  static const GBC_Frontend frontend=
-    {
-      _warning,
-      sram_get_external_ram,
-      screen_update,
-      check_signals,
-      pad_check_buttons,
-      sound_play,
-      pad_update_rumble,
-      NULL
-    };
-  
-  GBC_Error err;
+  gchar *rom_fn;
+  GBC_Rom rom;
+  GBC_RomHeader header;
+  const gchar *rom_id;
+  menu_response_t ret;
   
 
-  *response= MENU_QUIT_MAINMENU;
-  _quit= FALSE;
-  init_sram ( rom_id, sram_fn, _verbose );
-  init_state ( rom_id, state_prefix, _verbose );
-  err= GBC_init ( *_bios, rom, &frontend, NULL );
-  switch ( err )
-    {
-    case GBC_EUNKMAPPER:
-      warning ( "el mapper de la ROM és desconegut" );
-      goto error;
-    case GBC_WRONGLOGO:
-      warning ( "la ROM no ha passat el test del logotip" );
-      goto error;
-    case GBC_WRONGCHKS:
-      warning ( "la ROM no ha passat el test del checksum" );
-      goto error;
-    case GBC_WRONGRAMSIZE:
-      warning ( "la grandària de la RAM no està suportada" );
-      goto error;
-    case GBC_WRONGROMSIZE:
-      warning ("la grandària de la ROM no està suportada" );
-      goto error;
-    case GBC_NOERROR: break;
-    }
-  for (;;)
-    {
-      pad_clear ();
-      loop ();
-      if ( _quit ) { *response= MENU_QUIT; break; }
-      *response= menu_run ( menu_mode );
-      if ( *response != MENU_RESUME ) break;
-    }
-  close_sram ();
+  // Prepara.
+  rom_fn= NULL;
+  rom.banks= NULL;
+  
+  // Recupera el nom de la rom.
+  rom_fn= suspend_read_rom_file_name ( verbose );
+  if ( rom_fn == NULL ) goto error;
 
-  return 0;
-
+  // Intenta carregar la rom
+  if ( load_rom ( rom_fn, &rom, verbose ) != 0 )
+    goto error;
+  GBC_rom_get_header ( &rom, &header );
+  rom_id= get_rom_id ( &rom, &header, verbose );
+  
+  // Executa
+  if ( frontend_run_common ( &rom, rom_id, NULL, NULL, menu_mode,
+                             rom_fn, true, &ret, verbose ) != 0 )
+    goto error;
+  
+  // Allibera recursos.
+  g_free ( rom_fn );
+  GBC_rom_free ( rom );
+  
+  return ret;
+  
  error:
-  close_sram ();
-  return -1;
+  GBC_rom_free ( rom );
+  if ( rom_fn != NULL ) g_free ( rom_fn );
+  return MENU_QUIT_MAINMENU;
   
-} /* end frontend_run */
+} // end frontend_resume
 
 
 void
@@ -488,5 +629,6 @@ init_frontend (
   init_t8biso ();
   init_menu ( conf, bios, big_screen, verbose );
   init_hud ();
+  init_suspend ();
   
-} /* end init_frontend */
+} // end init_frontend
