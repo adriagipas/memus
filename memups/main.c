@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Adrià Giménez Pastor.
+ * Copyright 2020-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -35,6 +35,7 @@
 #include "dirs.h"
 #include "error.h"
 #include "frontend.h"
+#include "session.h"
 
 #include "PSX.h"
 
@@ -59,6 +60,7 @@ struct opts
 {
   
   gboolean  verbose;
+  gchar    *session_name;
   gchar    *conf_fn;
   gchar    *title;
   gboolean  enable_vsync;
@@ -84,7 +86,8 @@ usage (
   
   static struct opts vals=
     {
-     FALSE,    // verbose 
+     FALSE,    // verbose
+     NULL,     // session_name
      NULL,     // conf_fn
      NULL,     // title
      FALSE,    // enable_vsync
@@ -106,6 +109,11 @@ usage (
       { "verbose", 'v', 0, G_OPTION_ARG_NONE, &vals.verbose,
         "Verbose",
         NULL },
+      { "session", G_OPTION_ARG_NONE, 0, G_OPTION_ARG_STRING,
+        &vals.session_name,
+        "Nom de la sessió. Cada sessió manté un conjunt de fitxers"
+        " de configuració i desat separats. Per defecte la sessió estàndard",
+        "NAME" },
       { "enable-vsync", 0, 0, G_OPTION_ARG_NONE, &vals.enable_vsync,
         "Habilita la sincronització vertical. Aquest valor és manté"
         " per a futures execucions", NULL },
@@ -140,7 +148,8 @@ free_opts (
            struct opts *opts
            )
 {
-  
+
+  if ( opts->session_name != NULL ) g_free ( opts->session_name );
   if ( opts->conf_fn != NULL ) g_free ( opts->conf_fn );
   
 } // end free_opts
@@ -167,6 +176,35 @@ set_vsync (
 } // end set_vsync
 
 
+static gchar *
+get_title (
+           const gchar *title
+           )
+{
+  
+  gchar *ret;
+  const char *sname;
+  GString *buf;
+
+  
+  if ( title == NULL )
+    {
+      sname= session_get_name ();
+      if ( sname != NULL )
+        {
+          buf= g_string_new ( NULL );
+          g_string_printf ( buf, "memuPS (%s)", sname );
+          ret= g_string_free_and_steal ( buf );
+        }
+      else ret= g_strdup ( "memuPS" );
+    }
+  else ret= g_strdup ( title );
+  
+  return ret;
+  
+} // end get_title
+
+
 static void
 run (
      const struct opts *opts
@@ -174,16 +212,17 @@ run (
 {
   
   conf_t conf;
+  gchar *title;
   
   
   // Inicialitza
+  init_session ( opts->session_name, opts->verbose );
   init_dirs ();
   get_conf ( &conf, opts->conf_fn, opts->verbose );
   set_vsync ( opts, &conf );
-  init_frontend ( &conf,
-        	  opts->title==NULL ? "memuPS" : opts->title,
-        	  opts->big_screen,
-                  opts->verbose );
+  title= get_title ( opts->title );
+  init_frontend ( &conf, title, opts->big_screen, opts->verbose );
+  g_free ( title );
   
   // Executa.
   frontend_run ();
@@ -193,8 +232,10 @@ run (
   write_conf ( &conf, opts->conf_fn, opts->verbose );
   close_dirs ();
   free_conf ( &conf );
+  close_session ();
   
 } // end run
+
 
 
 

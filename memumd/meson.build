@@ -23,6 +23,7 @@ MEMUMD_FILES= files('background.c',
                     'sound.c',
                     'sram.c',
                     'state.c',
+                    'session.c',
                     'background.h',
                     'conf.h',
                     'dirs.h',
@@ -41,7 +42,8 @@ MEMUMD_FILES= files('background.c',
                     'sound.h',
                     'sram.h',
                     'state.h',
-                    'aux.c')
+                    'aux.c',
+                    'session.h')
 
 MEMUMD= executable('memumd',
                    MEMUMD_FILES,

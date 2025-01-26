@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2022 Adrià Giménez Pastor.
+ * Copyright 2016-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -37,6 +37,7 @@
 #include "frontend.h"
 #include "mainmenu.h"
 #include "rom.h"
+#include "session.h"
 
 #include "NES.h"
 
@@ -70,6 +71,7 @@ struct opts
   gboolean  verbose;
   gboolean  print_header;
   gboolean  print_id;
+  gchar    *session_name;
   gchar    *conf_fn;
   gchar    *title;
   gchar    *sram_fn;
@@ -101,6 +103,7 @@ usage (
       FALSE,    /* verbose */
       FALSE,    /* print_header */
       FALSE,    /* print_id */
+      NULL,     // session_name
       NULL,     /* conf_fn */
       NULL,     /* title */
       NULL,     /* sram_fn */
@@ -126,6 +129,11 @@ usage (
       { "print-id", 'I', 0, G_OPTION_ARG_NONE, &vals.print_id,
         "Imprimeix l'identificador de la ROM i surt (sols amb ROM)",
         NULL },
+      { "session", G_OPTION_ARG_NONE, 0, G_OPTION_ARG_STRING,
+        &vals.session_name,
+        "Nom de la sessió. Cada sessió manté un conjunt de fitxers"
+        " de configuració i desat separats. Per defecte la sessió estàndard",
+        "NAME" },
       { "sram", 's', 0, G_OPTION_ARG_STRING, &vals.sram_fn,
         "Empra com a memòria estàtica SRAM (sols amb ROM)",
         "SRAM" },
@@ -176,12 +184,13 @@ free_opts (
            struct opts *opts
            )
 {
-  
+
+  if ( opts->session_name != NULL ) g_free ( opts->session_name );
   if ( opts->conf_fn != NULL ) g_free ( opts->conf_fn );
   if ( opts->title != NULL ) g_free ( opts->title );
   if ( opts->sram_fn != NULL ) g_free ( opts->sram_fn );
   
-} /* end free_opts */
+} // end free_opts
 
 
 static void
@@ -230,6 +239,35 @@ set_vsync (
 } /* end set_vsync */
 
 
+static gchar *
+get_title (
+           const gchar *title
+           )
+{
+  
+  gchar *ret;
+  const char *sname;
+  GString *buf;
+
+  
+  if ( title == NULL )
+    {
+      sname= session_get_name ();
+      if ( sname != NULL )
+        {
+          buf= g_string_new ( NULL );
+          g_string_printf ( buf, "memuNES (%s)", sname );
+          ret= g_string_free_and_steal ( buf );
+        }
+      else ret= g_strdup ( "memuNES" );
+    }
+  else ret= g_strdup ( title );
+  
+  return ret;
+  
+} // end get_title
+
+
 static void
 run_with_rom (
               const struct args *args,
@@ -240,9 +278,10 @@ run_with_rom (
   NES_Rom rom;
   const char *rom_id;
   conf_t conf;
+  gchar *title;
   
   
-  /* Carrega la ROM. */
+  // Carrega la ROM.
   load_rom ( args->rom_fn, &rom, opts->verbose );
   if ( opts->print_header )
     {
@@ -256,27 +295,29 @@ run_with_rom (
       goto quit;
     }
   
-  /* Inicialitza. */
+  // Inicialitza.
+  init_session ( opts->session_name, opts->verbose );
   init_dirs ();
   get_conf ( &conf, rom_id, opts->conf_fn, NULL, opts->verbose );
   set_vsync ( opts, &conf );
-  init_frontend ( &conf,
-        	  opts->title==NULL ? "memuNES" : opts->title,
-        	  opts->big_screen );
+  title= get_title ( opts->title );
+  init_frontend ( &conf, title, opts->big_screen );
+  g_free ( title );
   
-  /* Executa. */
+  // Executa.
   frontend_run ( &rom, rom_id, opts->sram_fn, opts->state_prefix,
         	 MENU_MODE_INGAME_NOMAINMENU, opts->verbose );
   
-  /* Allibera memòria. i tanca */
+  // Allibera memòria. i tanca
   close_frontend ();
   write_conf ( &conf, rom_id, opts->conf_fn, opts->verbose );
   close_dirs ();
+  close_session ();
   
  quit:
   NES_rom_free ( rom );
   
-} /* end run_with_rom */
+} // end run_with_rom
 
 
 static void
@@ -287,23 +328,28 @@ run_without_rom (
 {
   
   conf_t conf;
+  gchar *title;
   
-
-  /* Inicialitza. */
+  
+  // Inicialitza.
+  init_session ( opts->session_name, opts->verbose );
   init_dirs ();
   get_default_conf ( &conf, opts->conf_fn, opts->verbose );
   set_vsync ( opts, &conf );
-  init_frontend ( &conf, "memuNES", opts->big_screen );
+  title= get_title ( NULL );
+  init_frontend ( &conf, title, opts->big_screen );
+  g_free ( title );
   
-  /* Executa. */
+  // Executa.
   main_menu ( &conf, opts->verbose );
   
-  /* Allibera memòria i tanca. */
+  // Allibera memòria i tanca.
   close_frontend ();
   write_default_conf ( &conf, opts->conf_fn, opts->verbose );
   close_dirs ();
+  close_session ();
   
-} /* end run_without_rom */
+} // end run_without_rom
 
 
 

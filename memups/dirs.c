@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2022 Adrià Giménez Pastor.
+ * Copyright 2014-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -25,6 +25,8 @@
 #include <glib.h>
 #include <stddef.h>
 #include <stdlib.h>
+
+#include "session.h"
 
 
 
@@ -56,17 +58,35 @@ close_dirs (void)
 void
 init_dirs (void)
 {
-  
-  // confdir.
-  _confdir= g_build_path ( G_DIR_SEPARATOR_S,
-        		   g_get_user_config_dir (),
-        		   "memus", "PS", NULL );
+
+  const gchar *sname;
+
+
+  // Crea noms
+  sname= session_get_name ();
+  if ( sname == NULL )
+    {
+      _confdir= g_build_path ( G_DIR_SEPARATOR_S,
+                               g_get_user_config_dir (),
+                               "memus", "PS", NULL );
+      _sharedir= g_build_path ( G_DIR_SEPARATOR_S,
+                                g_get_user_data_dir (),
+                                "memus", "PS", NULL );
+    }
+  else
+    {
+      _confdir= g_build_path ( G_DIR_SEPARATOR_S,
+                               g_get_user_config_dir (),
+                               "memus", "PS", "sessions",
+                               sname, NULL );
+      _sharedir= g_build_path ( G_DIR_SEPARATOR_S,
+                                g_get_user_data_dir (),
+                                "memus", "PS", "sessions",
+                                sname, NULL );
+    }
+
+  // Construeix.
   g_mkdir_with_parents ( _confdir, 0755 );
-  
-  // sharedir.
-  _sharedir= g_build_path ( G_DIR_SEPARATOR_S,
-        		    g_get_user_data_dir (),
-        		    "memus", "PS", NULL );
   g_mkdir_with_parents ( _sharedir, 0755 );
   
 } // end init_dirs

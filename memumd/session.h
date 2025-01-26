@@ -1,5 +1,5 @@
 /*
- * Copyright 2022-2024 Adrià Giménez Pastor.
+ * Copyright 2022-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *

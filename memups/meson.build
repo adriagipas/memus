@@ -30,7 +30,9 @@ MEMUPS_FILES= files('main.c',
                     'cd.h',
                     'cd.c',
                     'memc.h',
-                    'memc.c')
+                    'memc.c',
+                    'session.h',
+                    'session.c')
 
 MEMUPS= executable('memups',
                    MEMUPS_FILES,
