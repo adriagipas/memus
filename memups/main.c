@@ -63,8 +63,6 @@ struct opts
   gchar    *session_name;
   gchar    *conf_fn;
   gchar    *title;
-  gboolean  enable_vsync;
-  gboolean  disable_vsync;
   gboolean  big_screen;
   
 };
@@ -90,8 +88,6 @@ usage (
      NULL,     // session_name
      NULL,     // conf_fn
      NULL,     // title
-     FALSE,    // enable_vsync
-     FALSE,    // disable vsync
      FALSE     // big_screen
     };
   
@@ -114,12 +110,6 @@ usage (
         "Nom de la sessió. Cada sessió manté un conjunt de fitxers"
         " de configuració i desat separats. Per defecte la sessió estàndard",
         "NAME" },
-      { "enable-vsync", 0, 0, G_OPTION_ARG_NONE, &vals.enable_vsync,
-        "Habilita la sincronització vertical. Aquest valor és manté"
-        " per a futures execucions", NULL },
-      { "disable-vsync", 0, 0, G_OPTION_ARG_NONE, &vals.disable_vsync,
-        "Deshabilita la sincronització vertical. Aquest valor és manté"
-        " per a futures execucions", NULL },
       { NULL }
     };
   
@@ -153,27 +143,6 @@ free_opts (
   if ( opts->conf_fn != NULL ) g_free ( opts->conf_fn );
   
 } // end free_opts
-
-
-static void
-set_vsync (
-           const struct opts *opts,
-           conf_t            *conf
-           )
-{
-
-  if ( opts->enable_vsync )
-    {
-      if ( opts->verbose ) printf ( "V-Sync habilitat\n" );
-      conf->vsync= TRUE;
-    }
-  if ( opts->disable_vsync )
-    {
-      if ( opts->verbose ) printf ( "V-Sync deshabilitat\n" );
-      conf->vsync= FALSE;
-    }
-  
-} // end set_vsync
 
 
 static gchar *
@@ -219,7 +188,6 @@ run (
   init_session ( opts->session_name, opts->verbose );
   init_dirs ();
   get_conf ( &conf, opts->conf_fn, opts->verbose );
-  set_vsync ( opts, &conf );
   title= get_title ( opts->title );
   init_frontend ( &conf, title, opts->big_screen, opts->verbose );
   g_free ( title );

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2022 Adrià Giménez Pastor.
+ * Copyright 2014-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -420,6 +420,40 @@ screen_size_action (void)
 
 
 static const char *
+change_vsync_get_text (void)
+{
+  
+  static const char * const text[]=
+    {
+      "VSYNC: Si",
+      "VSYNC: NO"
+    };
+  
+  return text[_conf->vsync ? 0 : 1];
+  
+} // end change_vsync_get_text
+
+
+static int
+change_vsync_action (void)
+{
+  
+  _conf->vsync= !_conf->vsync;
+  tex_free ( _fb_tex );
+  screen_change_vsync ( _conf->vsync );
+  _fb_tex= windowtex_create_tex_fmt ( WIDTH, HEIGHT,
+                                      SDL_PIXELFORMAT_RGBA32 );
+  if ( SDL_SetTextureBlendMode ( _fb_tex->tex, SDL_BLENDMODE_BLEND ) != 0 )
+    error ( "change_vsync_action - no s'ha pogut crear"
+            " la textura per a _fb_tex: %s",
+            SDL_GetError () );
+  
+  return CONTINUE;
+  
+} // end change_vsync_action
+
+
+static const char *
 screen_tvmode_get_text (void)
 {
   return _conf->tvres_is_pal ?
@@ -628,6 +662,7 @@ menu_run (void)
      {memc1_get_text,memc1_action},
      {memc2_get_text,memc2_action},
      {screen_size_get_text,screen_size_action},
+     {change_vsync_get_text,change_vsync_action},
      {screen_tvmode_get_text,screen_tvmode_action},
      {port1_get_text,port1_action},
      {port2_get_text,port2_action},
@@ -644,6 +679,7 @@ menu_run (void)
      {cd_get_text,cd_action},
      {memc1_get_text,memc1_action},
      {memc2_get_text,memc2_action},
+     {change_vsync_get_text,change_vsync_action},
      {port1_get_text,port1_action},
      {port2_get_text,port2_action},
      {config_keys1_get_text,config_keys1_action},
@@ -655,8 +691,8 @@ menu_run (void)
   
   static const menumode_t menus[]=
     {
-      { 13, menu_basic },
-      { 11, menu_basic_bs },
+      { 14, menu_basic },
+      { 12, menu_basic_bs },
     };
   
   const gulong delay1= 200000;

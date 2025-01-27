@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2023 Adrià Giménez Pastor.
+ * Copyright 2014-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -26,6 +26,7 @@
 
 #include <glib.h>
 #include <SDL.h>
+#include <stdbool.h>
 
 #include "conf.h"
 
@@ -77,6 +78,11 @@ screen_sres_changed (
                      const int  width,
                      const int  height,
                      void      *udata
+                     );
+
+void
+screen_change_vsync (
+                     const bool vsync
                      );
 
 void

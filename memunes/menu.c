@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2022 Adrià Giménez Pastor.
+ * Copyright 2016-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -342,6 +342,33 @@ change_scaler_action (void)
 
 
 static const char *
+change_vsync_get_text (void)
+{
+  
+  static const char * const text[]=
+    {
+      "VSYNC: Si",
+      "VSYNC: NO"
+    };
+  
+  return text[_conf->vsync ? 0 : 1];
+  
+} // end change_vsync_get_text
+
+
+static int
+change_vsync_action (void)
+{
+  
+  _conf->vsync= !_conf->vsync;
+  screen_change_vsync ( _conf->vsync );
+  
+  return CONTINUE;
+  
+} // end change_vsync_action
+
+
+static const char *
 config_keys1_get_text (void)
 {
   return "AJUSTA EL TECLAT PER AL PAD1";
@@ -552,6 +579,7 @@ menu_run (
       {resume_get_text,resume_action},
       {screen_size_get_text,screen_size_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {config_keys1_get_text,config_keys1_action},
       {config_keys2_get_text,config_keys2_action},
       {help_get_text,help_action},
@@ -566,6 +594,7 @@ menu_run (
       {resume_get_text,resume_action},
       {screen_size_get_text,screen_size_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {config_keys1_get_text,config_keys1_action},
       {config_keys2_get_text,config_keys2_action},
       {help_get_text,help_action},
@@ -579,6 +608,7 @@ menu_run (
       {quit_mmenu_get_text,quit_mmenu_action},
       {screen_size_get_text,screen_size_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {config_keys1_get_text,config_keys1_action},
       {config_keys2_get_text,config_keys2_action},
       {help_get_text,help_action},
@@ -589,6 +619,7 @@ menu_run (
     {
       {resume_get_text,resume_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {help_get_text,help_action},
       {reset_get_text,reset_action},
       {change_tvmode_get_text,change_tvmode_action},
@@ -600,6 +631,7 @@ menu_run (
     {
       {resume_get_text,resume_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {help_get_text,help_action},
       {reset_get_text,reset_action},
       {change_tvmode_get_text,change_tvmode_action},
@@ -610,18 +642,19 @@ menu_run (
     {
       {quit_mmenu_get_text,quit_mmenu_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {help_get_text,help_action},
       {quit_get_text,quit_action}
     };
   
   static const menumode_t menus[]=
     {
-      { 10, menu_ingame_mainmenu },
-      { 9, menu_ingame_nomainmenu },
-      { 7, menu_mainmenu },
-      { 7, menu_ingame_mainmenu_bs },
-      { 6, menu_ingame_nomainmenu_bs },
-      { 4, menu_mainmenu_bs }
+      { 11, menu_ingame_mainmenu },
+      { 10, menu_ingame_nomainmenu },
+      { 8, menu_mainmenu },
+      { 8, menu_ingame_mainmenu_bs },
+      { 7, menu_ingame_nomainmenu_bs },
+      { 5, menu_mainmenu_bs }
     };
   
   const gulong delay1= 200000;

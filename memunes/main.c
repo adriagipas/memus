@@ -76,8 +76,6 @@ struct opts
   gchar    *title;
   gchar    *sram_fn;
   gchar    *state_prefix;
-  gboolean  enable_vsync;
-  gboolean  disable_vsync;
   gboolean  big_screen;
   
 };
@@ -108,8 +106,6 @@ usage (
       NULL,     /* title */
       NULL,     /* sram_fn */
       NULL,     /* state_prefix */
-      FALSE,    /* enable_vsync */
-      FALSE,    /* disable vsync */
       FALSE     /* big_screen */
     };
   
@@ -146,12 +142,6 @@ usage (
       { "verbose", 'v', 0, G_OPTION_ARG_NONE, &vals.verbose,
         "Verbose",
         NULL },
-      { "enable-vsync", 0, 0, G_OPTION_ARG_NONE, &vals.enable_vsync,
-        "Habilita la sincronització vertical. Aquest valor és manté"
-        " per a futures execucions", NULL },
-      { "disable-vsync", 0, 0, G_OPTION_ARG_NONE, &vals.disable_vsync,
-        "Deshabilita la sincronització vertical. Aquest valor és manté"
-        " per a futures execucions", NULL },
       { NULL }
     };
   
@@ -218,27 +208,6 @@ print_header (
 } /* end print_header */
 
 
-static void
-set_vsync (
-           const struct opts *opts,
-           conf_t            *conf
-           )
-{
-
-  if ( opts->enable_vsync )
-    {
-      if ( opts->verbose ) printf ( "V-Sync habilitat\n" );
-      conf->vsync= TRUE;
-    }
-  if ( opts->disable_vsync )
-    {
-      if ( opts->verbose ) printf ( "V-Sync deshabilitat\n" );
-      conf->vsync= FALSE;
-    }
-  
-} /* end set_vsync */
-
-
 static gchar *
 get_title (
            const gchar *title
@@ -299,7 +268,6 @@ run_with_rom (
   init_session ( opts->session_name, opts->verbose );
   init_dirs ();
   get_conf ( &conf, rom_id, opts->conf_fn, NULL, opts->verbose );
-  set_vsync ( opts, &conf );
   title= get_title ( opts->title );
   init_frontend ( &conf, title, opts->big_screen );
   g_free ( title );
@@ -335,7 +303,6 @@ run_without_rom (
   init_session ( opts->session_name, opts->verbose );
   init_dirs ();
   get_default_conf ( &conf, opts->conf_fn, opts->verbose );
-  set_vsync ( opts, &conf );
   title= get_title ( NULL );
   init_frontend ( &conf, title, opts->big_screen );
   g_free ( title );

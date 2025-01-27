@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2024 Adrià Giménez Pastor.
+ * Copyright 2014-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -278,6 +278,15 @@ screen_change_title (
 {
   windowfb_set_title ( title );
 } /* end screen_change_title */
+
+
+void
+screen_change_vsync (
+                     const bool vsync
+                     )
+{
+  windowfb_set_vsync ( vsync );
+} // end screen_change_vsync
 
 
 const int *

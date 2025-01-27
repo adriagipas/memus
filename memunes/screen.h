@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2022 Adrià Giménez Pastor.
+ * Copyright 2016-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -26,6 +26,7 @@
 
 #include <glib.h>
 #include <SDL.h>
+#include <stdbool.h>
 
 #include "NES.h"
 #include "conf.h"
@@ -74,6 +75,11 @@ void
 screen_set_tvmode (
         	   const NES_TVMode tvmode
         	   );
+
+void
+screen_change_vsync (
+                     const bool vsync
+                     );
 
 void
 screen_update (

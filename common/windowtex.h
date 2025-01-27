@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Adrià Giménez Pastor.
+ * Copyright 2020-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -127,6 +127,14 @@ windowtex_get_color (
 void
 windowtex_show (void);
 
+// IMPORTANT!! Modificar el vsync implica que les textures creades ja
+// no són vàlides.
+void
+windowtex_set_vsync (
+                     const bool vsync
+                     );
+
+
 // Textures //
 
 void
@@ -154,5 +162,10 @@ tex_copy_fb_pal (
                  const int       w,
                  const int       h
                  );
+
+void
+tex_clear (
+           tex_t *tex
+           );
 
 #endif // __WINDOWTEX_H__

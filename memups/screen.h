@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Adrià Giménez Pastor.
+ * Copyright 2020-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -62,6 +62,12 @@ void
 screen_change_title (
         	     const char *title
         	     );
+
+// IMPORTANT!! Cal refer les textures.
+void
+screen_change_vsync (
+                     const bool vsync
+                     );
 
 void
 screen_update (

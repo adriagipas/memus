@@ -396,6 +396,33 @@ change_scaler_action (void)
 
 
 static const char *
+change_vsync_get_text (void)
+{
+  
+  static const char * const text[]=
+    {
+      "VSYNC: Si",
+      "VSYNC: NO"
+    };
+  
+  return text[_conf->vsync ? 0 : 1];
+  
+} // end change_vsync_get_text
+
+
+static int
+change_vsync_action (void)
+{
+  
+  _conf->vsync= !_conf->vsync;
+  screen_change_vsync ( _conf->vsync );
+  
+  return CONTINUE;
+  
+} // end change_vsync_action
+
+
+static const char *
 config_keys1_get_text (void)
 {
   return "AJUSTA EL TECLAT PER AL PAD1";
@@ -685,6 +712,7 @@ menu_run (
     {
       {resume_get_text,resume_action},
       {screen_size_get_text,screen_size_action},
+      {change_vsync_get_text,change_vsync_action},
       {change_scaler_get_text,change_scaler_action},
       {port1_get_text,port1_action},
       {port2_get_text,port2_action},
@@ -702,6 +730,7 @@ menu_run (
       {resume_get_text,resume_action},
       {screen_size_get_text,screen_size_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {port1_get_text,port1_action},
       {port2_get_text,port2_action},
       {config_keys1_get_text,config_keys1_action},
@@ -717,6 +746,7 @@ menu_run (
       {quit_mmenu_get_text,quit_mmenu_action},
       {screen_size_get_text,screen_size_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {port1_get_text,port1_action},
       {port2_get_text,port2_action},
       {config_keys1_get_text,config_keys1_action},
@@ -729,6 +759,7 @@ menu_run (
     {
       {resume_get_text,resume_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {port1_get_text,port1_action},
       {port2_get_text,port2_action},
       {help_get_text,help_action},
@@ -742,6 +773,7 @@ menu_run (
     {
       {resume_get_text,resume_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {port1_get_text,port1_action},
       {port2_get_text,port2_action},
       {help_get_text,help_action},
@@ -754,6 +786,7 @@ menu_run (
     {
       {quit_mmenu_get_text,quit_mmenu_action},
       {change_scaler_get_text,change_scaler_action},
+      {change_vsync_get_text,change_vsync_action},
       {port1_get_text,port1_action},
       {port2_get_text,port2_action},
       {help_get_text,help_action},
@@ -762,12 +795,12 @@ menu_run (
   
   static const menumode_t menus[]=
     {
-      { 12, menu_ingame_mainmenu },
-      { 11, menu_ingame_nomainmenu },
-      { 9, menu_mainmenu },
-      { 9, menu_ingame_mainmenu_bs },
-      { 8, menu_ingame_nomainmenu_bs },
-      { 6, menu_mainmenu_bs }
+      { 13, menu_ingame_mainmenu },
+      { 12, menu_ingame_nomainmenu },
+      { 10, menu_mainmenu },
+      { 10, menu_ingame_mainmenu_bs },
+      { 9, menu_ingame_nomainmenu_bs },
+      { 7, menu_mainmenu_bs }
     };
   
   const gulong delay1= 200000;

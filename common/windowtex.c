@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Adrià Giménez Pastor.
+ * Copyright 2020-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -45,6 +45,7 @@ static struct
 
   SDL_Rect      bounds;       // Grandària del display
   bool          fullscreen;   // Valor decodificat de screen_size
+  bool          vsync;
   int           width,height; // Grandària de la finestra.
   int           rwidth,rheight; // Grandària real de la finestra. Pot
                                 // no coincidir amb l'anterior quan
@@ -277,8 +278,9 @@ init_sdl (
   
   // Amaga el cursor.
   SDL_ShowCursor ( 0 );
-
+  
   // Crea el renderer
+  _sdl.vsync= vsync;
   _sdl.renderer= SDL_CreateRenderer ( _sdl.win, -1,
                                       SDL_RENDERER_ACCELERATED |
                                       (vsync ? SDL_RENDERER_PRESENTVSYNC : 0) );
@@ -505,6 +507,27 @@ windowtex_draw_tex (
 } // end windowtex_draw_tex
 
 
+void
+windowtex_set_vsync (
+                     const bool vsync
+                     )
+{
+  
+  if ( vsync != _sdl.vsync )
+    {
+      SDL_DestroyRenderer ( _sdl.renderer );
+      _sdl.vsync= vsync;
+      _sdl.renderer= SDL_CreateRenderer ( _sdl.win, -1,
+                                          SDL_RENDERER_ACCELERATED |
+                                          (vsync ?
+                                           SDL_RENDERER_PRESENTVSYNC : 0) );
+      if ( _sdl.renderer == NULL )
+        error ( "ha fallat la creació del renderer: %s", SDL_GetError () );
+    }
+  
+} // end windowfb_set_vsync
+
+
 uint32_t
 windowtex_get_color (
                     const uint8_t r,
@@ -539,6 +562,7 @@ windowtex_show (void)
 {
   SDL_ShowWindow ( _sdl.win );
 } // end windowtex_show
+
 
 
 void
@@ -608,3 +632,28 @@ tex_copy_fb_pal (
   SDL_UnlockTexture ( tex->tex );
   
 } // end tex_copy_fb_pal
+
+
+void
+tex_clear (
+           tex_t *tex
+           )
+{
+
+  int r,c,i,pitch;
+  uint8_t *buffer;
+  
+  
+  if ( SDL_LockTexture ( tex->tex, NULL, (void **) &buffer, &pitch ) != 0 )
+    error ( "no s'ha pogut actualitzar la textura: %s", SDL_GetError () );
+  
+  for ( r= i= 0; r < tex->h; ++r )
+    {
+      for ( c= 0; c < tex->w; ++c, ++i )
+        ((uint32_t *) buffer)[c]= 0;
+      buffer+= pitch;
+    }
+  
+  SDL_UnlockTexture ( tex->tex );
+  
+} // end tex_clear
