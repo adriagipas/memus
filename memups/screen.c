@@ -31,10 +31,8 @@
 
 #include "PSX.h"
 #include "error.h"
-/*
-#include "hud.h"
-*/
 #include "icon.h"
+#include "lock.h"
 #include "screen.h"
 #include "windowtex.h"
 
@@ -288,6 +286,9 @@ screen_next_event (
         	   SDL_Event *event
         	   )
 {
+
+  if ( lock_check_signals () )
+    windowtex_raise ();
   
   while ( SDL_PollEvent ( event ) )
     switch ( event->type )

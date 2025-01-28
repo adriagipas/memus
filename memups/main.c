@@ -35,6 +35,7 @@
 #include "dirs.h"
 #include "error.h"
 #include "frontend.h"
+#include "lock.h"
 #include "session.h"
 
 #include "PSX.h"
@@ -186,20 +187,24 @@ run (
   
   // Inicialitza
   init_session ( opts->session_name, opts->verbose );
-  init_dirs ();
-  get_conf ( &conf, opts->conf_fn, opts->verbose );
-  title= get_title ( opts->title );
-  init_frontend ( &conf, title, opts->big_screen, opts->verbose );
-  g_free ( title );
-  
-  // Executa.
-  frontend_run ();
-  
-  // Allibera memòria. i tanca
-  close_frontend ();
-  write_conf ( &conf, opts->conf_fn, opts->verbose );
-  close_dirs ();
-  free_conf ( &conf );
+  if ( init_lock ( opts->verbose ) )
+    {
+      init_dirs ();
+      get_conf ( &conf, opts->conf_fn, opts->verbose );
+      title= get_title ( opts->title );
+      init_frontend ( &conf, title, opts->big_screen, opts->verbose );
+      g_free ( title );
+      
+      // Executa.
+      frontend_run ();
+      
+      // Allibera memòria i tanca
+      close_frontend ();
+      write_conf ( &conf, opts->conf_fn, opts->verbose );
+      close_dirs ();
+      free_conf ( &conf );
+      close_lock ();
+    }
   close_session ();
   
 } // end run

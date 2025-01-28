@@ -134,6 +134,9 @@ windowtex_set_vsync (
                      const bool vsync
                      );
 
+void
+windowtex_raise (void);
+
 
 // Textures //
 

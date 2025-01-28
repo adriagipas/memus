@@ -35,6 +35,7 @@
 #include "dirs.h"
 #include "error.h"
 #include "frontend.h"
+#include "lock.h"
 #include "mainmenu.h"
 #include "rom.h"
 #include "session.h"
@@ -266,20 +267,24 @@ run_with_rom (
   
   // Inicialitza.
   init_session ( opts->session_name, opts->verbose );
-  init_dirs ();
-  get_conf ( &conf, rom_id, opts->conf_fn, NULL, opts->verbose );
-  title= get_title ( opts->title );
-  init_frontend ( &conf, title, opts->big_screen );
-  g_free ( title );
+  if ( init_lock ( rom_id, opts->verbose ) )
+    {
+      init_dirs ();
+      get_conf ( &conf, rom_id, opts->conf_fn, NULL, opts->verbose );
+      title= get_title ( opts->title );
+      init_frontend ( &conf, title, opts->big_screen );
+      g_free ( title );
   
-  // Executa.
-  frontend_run ( &rom, rom_id, opts->sram_fn, opts->state_prefix,
-        	 MENU_MODE_INGAME_NOMAINMENU, opts->verbose );
+      // Executa.
+      frontend_run ( &rom, rom_id, opts->sram_fn, opts->state_prefix,
+                     MENU_MODE_INGAME_NOMAINMENU, opts->verbose );
   
-  // Allibera memòria. i tanca
-  close_frontend ();
-  write_conf ( &conf, rom_id, opts->conf_fn, opts->verbose );
-  close_dirs ();
+      // Allibera memòria. i tanca
+      close_frontend ();
+      write_conf ( &conf, rom_id, opts->conf_fn, opts->verbose );
+      close_dirs ();
+      close_lock ();
+    }
   close_session ();
   
  quit:
@@ -301,19 +306,23 @@ run_without_rom (
   
   // Inicialitza.
   init_session ( opts->session_name, opts->verbose );
-  init_dirs ();
-  get_default_conf ( &conf, opts->conf_fn, opts->verbose );
-  title= get_title ( NULL );
-  init_frontend ( &conf, title, opts->big_screen );
-  g_free ( title );
-  
-  // Executa.
-  main_menu ( &conf, opts->verbose );
-  
-  // Allibera memòria i tanca.
-  close_frontend ();
-  write_default_conf ( &conf, opts->conf_fn, opts->verbose );
-  close_dirs ();
+  if ( init_lock ( NULL, opts->verbose ) )
+    {
+      init_dirs ();
+      get_default_conf ( &conf, opts->conf_fn, opts->verbose );
+      title= get_title ( NULL );
+      init_frontend ( &conf, title, opts->big_screen );
+      g_free ( title );
+      
+      // Executa.
+      main_menu ( &conf, opts->verbose );
+      
+      // Allibera memòria i tanca.
+      close_frontend ();
+      write_default_conf ( &conf, opts->conf_fn, opts->verbose );
+      close_dirs ();
+      close_lock ();
+    }
   close_session ();
   
 } // end run_without_rom

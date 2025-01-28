@@ -564,6 +564,15 @@ windowtex_show (void)
 } // end windowtex_show
 
 
+void
+windowtex_raise (void)
+{
+
+  SDL_ShowWindow ( _sdl.win );
+  SDL_RaiseWindow ( _sdl.win );
+  
+} // end windowtex_raise
+
 
 void
 tex_free (
