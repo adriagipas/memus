@@ -25,6 +25,8 @@
 #ifndef __MPAD_H__
 #define __MPAD_H__
 
+#include <SDL.h>
+
 /* Botons. */
 #define K_UP 0x1
 #define K_DOWN 0x2

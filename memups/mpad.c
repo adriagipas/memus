@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2022 Adrià Giménez Pastor.
+ * Copyright 2015-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -48,18 +48,28 @@ mpad_clear (void)
 
 
 int
-mpad_check_buttons (void)
+mpad_check_buttons (
+                    const mouse_area_t    *mouse_area,
+                    mpad_mouse_callback_t  cb,
+                    void                  *udata
+                    )
 {
   
   SDL_Event event;
   int ret, aux;
   const PSX_ControllerState *state;
   
-
+  
   // Comprova tecles.
-  while ( screen_next_event ( &event ) )
+  while ( screen_next_event ( &event, mouse_area ) )
     switch ( event.type )
       {
+      case SDL_MOUSEMOTION:
+      case SDL_MOUSEBUTTONDOWN:
+      case SDL_MOUSEBUTTONUP:
+      case SDL_MOUSEWHEEL:
+        if ( cb != NULL ) cb ( &event, udata );
+        break;
       case SDL_QUIT: return K_QUIT;
       case SDL_KEYDOWN:
         if ( event.key.keysym.mod&KMOD_CTRL &&

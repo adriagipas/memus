@@ -368,3 +368,12 @@ screen_show_error (
 {
   windowfb_show_error ( title, message );
 } /* end screen_show_error */
+
+
+void
+screen_enable_cursor (
+                      const bool enable
+                      )
+{
+  windowfb_enable_cursor ( enable, false );
+} // end screen_enable_cursor

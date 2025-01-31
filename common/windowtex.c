@@ -575,6 +575,15 @@ windowtex_raise (void)
 
 
 void
+windowtex_show_cursor (
+                       const bool show
+                       )
+{
+  SDL_ShowCursor ( show ? 1 : 0 );
+} // end windowtex_show_cursor
+
+
+void
 tex_free (
           tex_t *tex
           )

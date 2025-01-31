@@ -138,6 +138,13 @@ void
 windowtex_raise (void);
 
 
+// El cursor es mostra/amaga d'acord amb show.
+void
+windowtex_show_cursor (
+                       const bool show
+                       );
+
+
 // Textures //
 
 void

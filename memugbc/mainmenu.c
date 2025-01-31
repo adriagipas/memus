@@ -167,6 +167,7 @@ main_menu (
           if ( quit ) stop= true;
           else if ( rom_fn == NULL )
             {
+              fchooser_hide_cursor ( fc );
               if ( menu_run ( MENU_MODE_MAINMENU ) == MENU_QUIT )
                 stop= true;
             }

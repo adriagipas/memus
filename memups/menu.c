@@ -31,10 +31,8 @@
 #include <string.h>
 
 #include "cd.h"
+#include "cursor.h"
 #include "error.h"
-/*
-#include "hud.h"
-*/
 #include "load_bios.h"
 #include "memc.h"
 #include "menu.h"
@@ -60,6 +58,23 @@
 //#define WIDTH 288
 //#define HEIGHT 216
 
+#define MOUSE_COUNTER 200
+
+
+
+/*************/
+/* CONSTANTS */
+/*************/
+
+static const draw_area_t DRAW_AREA=
+  { .x0= 0.05, .x1= 0.95, .y0= 0.05, .y1= 0.95 };
+
+static const mouse_area_t MOUSE_AREA= {
+    .area= &DRAW_AREA,
+    .w= WIDTH,
+    .h= HEIGHT
+  };
+
 
 
 
@@ -67,23 +82,38 @@
 /* TIPUS */
 /*********/
 
-// Valor que torna action.
-enum
-  {
-   CONTINUE,
-   RESUME,
-   QUIT,
-   RESET,
-   REINIT
-};
+typedef struct menuitem menuitem_t;
 
 typedef struct
 {
+  int                 N;
+  int                 current;
+  const menuitem_t   *menu;
+  int                 ret_mouse;
+  int                 mouse_x;
+  int                 mouse_y;
+  bool                mouse_hide;
+  int                 mouse_counter;
+} menu_state_t;
+
+// Valor que torna action.
+enum
+  {
+    NO_ACTION,
+    CONTINUE,
+    RESUME,
+    QUIT,
+    RESET,
+    REINIT
+  };
+
+struct menuitem
+{
   
   const char * (*get_text) (void);
-  int          (*action) (void);
+  int          (*action) (menu_state_t *mst);
   
-} menuitem_t;
+};
 
 typedef struct
 {
@@ -100,6 +130,8 @@ enum
    FGCOLOR2,
    SELCOLOR1,
    SELCOLOR2,
+   CURSOR_BLACK,
+   CURSOR_WHITE,
 
    NUM_COLORS
   };
@@ -166,6 +198,8 @@ init_pal (void)
   _pal[FGCOLOR2]= get_color ( 0xff, 0xff, 0xff, 0xff );
   _pal[SELCOLOR1]= get_color ( 0xa0, 0x00, 0x00, 0xff );
   _pal[SELCOLOR2]= get_color ( 0xe0, 0x00, 0x00, 0xff );
+  _pal[CURSOR_BLACK]= get_color ( 0, 0, 0, 0xff );
+  _pal[CURSOR_WHITE]= get_color ( 250, 250, 250, 0xff );
   
 } // end init_pal
 
@@ -173,9 +207,6 @@ init_pal (void)
 static void
 redraw_fb (void)
 {
-
-  const draw_area_t DRAW_AREA= { .x0= 0.05, .x1= 0.95, .y0= 0.05, .y1= 0.95 };
-
   
   // Copia en textura.
   tex_copy_fb_pal ( _fb_tex, _fb, _pal, WIDTH, HEIGHT );
@@ -190,10 +221,26 @@ redraw_fb (void)
 
 
 static void
+draw_cursor (
+             menu_state_t *mst
+             )
+{
+
+  if ( !mst->mouse_hide )
+    {
+      cursor_draw ( _fb, WIDTH, HEIGHT,
+                    mst->mouse_x, mst->mouse_y,
+                    CURSOR_BLACK, CURSOR_WHITE );
+      if ( --(mst->mouse_counter) == 0 )
+        mst->mouse_hide= true;
+    }
+  
+} // end draw_cursor
+
+
+static void
 draw_menu (
-           const menuitem_t menu[],
-           const int        N,
-           const int        selected
+           menu_state_t *mst
            )
 {
 
@@ -207,17 +254,124 @@ draw_menu (
   for ( int i= 0; i < WIDTH*HEIGHT; ++i ) _fb[i]= BGCOLOR;
   
   // Menú.
-  for ( i= 0, y= OFF_Y; i < N; ++i, ++y )
-    if ( i == selected )
-      tiles16b_draw_string ( _fb, WIDTH, menu[i].get_text (),
+  for ( i= 0, y= OFF_Y; i < mst->N; ++i, ++y )
+    if ( i == mst->current )
+      tiles16b_draw_string ( _fb, WIDTH, mst->menu[i].get_text (),
                              OFF_X, y, SELCOLOR1, SELCOLOR2, 0, T16_BG_TRANS );
     else
-      tiles16b_draw_string ( _fb, WIDTH, menu[i].get_text (),
+      tiles16b_draw_string ( _fb, WIDTH, mst->menu[i].get_text (),
                              OFF_X, y, FGCOLOR1, FGCOLOR2, 0, T16_BG_TRANS );
-  
+  draw_cursor ( mst );
   redraw_fb ();
   
 } // end draw_menu
+
+
+// Torna -1 si no s'està apuntat a ninguna
+static int
+translate_mousexy2entry (
+                         const int x,
+                         const int y,
+                         const int nentries
+                         )
+{
+
+  const int OFF_X= 1;
+  const int OFF_Y= 1;
+  
+  int x0,xf,y0,yf,ret;
+
+
+  x0= OFF_X*8;
+  xf= WIDTH - OFF_X*8;
+  y0= OFF_Y*16;
+  yf= y0 + nentries*16;
+  if ( x >= x0 && x < xf && y >= y0 && y < yf )
+    ret= (y-y0)/16;
+  else ret= -1;
+  
+  return ret;
+  
+} // translate_mousexy2entry
+
+
+static void
+mouse_update_pos (
+                  menu_state_t *mst,
+                  const int     x,
+                  const int     y
+                  )
+{
+
+  mst->mouse_x= x;
+  mst->mouse_y= y;
+  mst->mouse_hide= false;
+  mst->mouse_counter= MOUSE_COUNTER;
+  
+} // end mouse_update_pos
+
+
+static void
+mouse_cb (
+          SDL_Event *event,
+          void      *udata
+          )
+{
+
+  int sel;
+  menu_state_t *mst;
+  
+  
+  mst= (menu_state_t *) udata;
+  if ( mst->ret_mouse == NO_ACTION )
+    {
+      switch ( event->type )
+        {
+        case SDL_MOUSEBUTTONUP:
+          mouse_update_pos ( mst, event->button.x, event->button.y );
+          break;
+        case SDL_MOUSEMOTION:
+          mouse_update_pos ( mst, event->motion.x, event->motion.y );
+          break;
+        case SDL_MOUSEBUTTONDOWN:
+          mouse_update_pos ( mst, event->button.x, event->button.y );
+          switch ( event->button.button )
+            {
+              // Botó esquerre
+            case SDL_BUTTON_LEFT:
+              sel= translate_mousexy2entry ( event->button.x,
+                                             event->button.y,
+                                             mst->N );
+              if ( sel != -1 )
+                {
+                  mst->current= sel;
+                  if ( event->button.clicks > 1 )
+                    {
+                      mst->ret_mouse= mst->menu[sel].action ( mst );
+                      mpad_clear (); // neteja botons
+                    }
+                }
+              break;
+              // Botó dret.
+            case SDL_BUTTON_RIGHT:
+              mst->ret_mouse= RESUME;
+              break;
+            }
+          break;
+        case SDL_MOUSEWHEEL:
+          if ( event->wheel.y > 0 )
+            {
+              if ( mst->current > 0 ) --(mst->current);
+            }
+          else if ( event->wheel.y < 0 )
+            {
+              if ( mst->current < mst->N-1 ) ++(mst->current);
+            }
+          break;
+        }
+    }
+  
+} // end mouse_cb
 
 
 static int
@@ -266,7 +420,7 @@ config_keys_action (
       stop= false;
       for (;;)
         {
-          while ( !stop && screen_next_event ( &event ) )
+          while ( !stop && screen_next_event ( &event, &MOUSE_AREA ) )
             switch ( event.type )
               {
               case SDL_QUIT: return QUIT;
@@ -316,7 +470,9 @@ resume_get_text (void)
 
 
 static int
-resume_action (void)
+resume_action (
+               menu_state_t *mst
+               )
 {
   return RESUME;
 } // end resume_action
@@ -330,7 +486,9 @@ cd_get_text (void)
 
 
 static int
-cd_action (void)
+cd_action (
+           menu_state_t *mst
+           )
 {
 
   bool quit;
@@ -353,7 +511,9 @@ memc1_get_text (void)
 
 
 static int
-memc1_action (void)
+memc1_action (
+              menu_state_t *mst
+              )
 {
 
   bool quit;
@@ -376,7 +536,9 @@ memc2_get_text (void)
 
 
 static int
-memc2_action (void)
+memc2_action (
+              menu_state_t *mst
+              )
 {
 
   bool quit;
@@ -407,7 +569,9 @@ screen_size_get_text (void)
 
 
 static int
-screen_size_action (void)
+screen_size_action (
+                    menu_state_t *mst
+                    )
 {
   
   if ( ++(_conf->screen_size) == SCREEN_SIZE_SENTINEL )
@@ -435,7 +599,9 @@ change_vsync_get_text (void)
 
 
 static int
-change_vsync_action (void)
+change_vsync_action (
+                     menu_state_t *mst
+                     )
 {
   
   _conf->vsync= !_conf->vsync;
@@ -463,7 +629,9 @@ screen_tvmode_get_text (void)
 
 
 static int
-screen_tvmode_action (void)
+screen_tvmode_action (
+                      menu_state_t *mst
+                      )
 {
 
   _conf->tvres_is_pal= !_conf->tvres_is_pal;
@@ -490,7 +658,9 @@ port1_get_text (void)
 
 
 static int
-port1_action (void)
+port1_action (
+              menu_state_t *mst
+              )
 {
 
   if ( _conf->controllers[0] == PSX_CONTROLLER_NONE )
@@ -520,7 +690,9 @@ port2_get_text (void)
 
 
 static int
-port2_action (void)
+port2_action (
+              menu_state_t *mst
+              )
 {
 
   if ( _conf->controllers[1] == PSX_CONTROLLER_NONE )
@@ -542,7 +714,9 @@ config_keys1_get_text (void)
 
 
 static int
-config_keys1_action (void)
+config_keys1_action (
+                     menu_state_t *mst
+                     )
 {
   return config_keys_action ( 0 );
 } // end config_keys1_action
@@ -556,7 +730,9 @@ config_keys2_get_text (void)
 
 
 static int
-config_keys2_action (void)
+config_keys2_action (
+                     menu_state_t *mst
+                     )
 {
   return config_keys_action ( 1 );
 } // end config_keys2_action
@@ -570,7 +746,9 @@ reset_get_text (void)
 
 
 static int
-reset_action (void)
+reset_action (
+              menu_state_t *mst
+              )
 {
   return RESET;
 } // end reset_action
@@ -584,7 +762,9 @@ bios_get_text (void)
 
 
 static int
-bios_action (void)
+bios_action (
+             menu_state_t *mst
+             )
 {
 
   bool quit,ret;
@@ -606,7 +786,9 @@ quit_get_text (void)
 
 
 static int
-quit_action (void)
+quit_action (
+             menu_state_t *mst
+             )
 {
   return QUIT;
 } // end quit_action
@@ -697,41 +879,48 @@ menu_run (void)
   
   const gulong delay1= 200000;
   const gulong delay2= 100000;
-  
-  int current, buttons, ret, N;
+
+  menu_state_t mst;
+  int buttons, ret;
   gulong delay;
-  const menuitem_t *menu;
   
 
-  N= menus[_bg_off].N;
-  menu= menus[_bg_off].items;
-  current= 0;
+  mst.N= menus[_bg_off].N;
+  mst.menu= menus[_bg_off].items;
+  mst.current= 0;
+  mst.mouse_x= 0;
+  mst.mouse_y= 0;
+  mst.mouse_hide= true;
   delay= delay1;
   mpad_clear ();
-  /*
-  hud_hide ();
-  */
+  screen_enable_cursor ( true );
   for (;;)
     {
-      draw_menu ( menu, N, current );
+      draw_menu ( &mst );
       g_usleep ( 10000 );
-      buttons= mpad_check_buttons ();
+      mst.ret_mouse= NO_ACTION;
+      buttons= mpad_check_buttons ( &MOUSE_AREA, mouse_cb, &mst );
+      if ( mst.ret_mouse != NO_ACTION )
+        {
+          if ( mst.ret_mouse != CONTINUE ) { ret= mst.ret_mouse; break; }
+          continue;
+        }
       if ( buttons&K_QUIT ) { ret= QUIT; break; }
       else if ( buttons&K_ESCAPE ) { ret= RESUME; break; }
       else if ( buttons&K_BUTTON )
         {
-          ret= menu[current].action ();
-          draw_menu ( menu, N, current ); // Per si canvíem alguna
+          ret= mst.menu[mst.current].action ( &mst );
+          draw_menu ( &mst ); // Per si canvíem alguna
                                           // cosa de la patalla.
           mpad_clear (); // neteja botons.
           if ( ret != CONTINUE ) break;
         }
       else if ( buttons&K_UP )
         {
-          if ( current == 0 ) current= N-1;
-          else --current;
+          if ( mst.current == 0 ) mst.current= mst.N-1;
+          else --mst.current;
         }
-      else if ( buttons&K_DOWN ) current= (current+1)%N;
+      else if ( buttons&K_DOWN ) mst.current= (mst.current+1)%mst.N;
       if ( buttons ) // Descansa un poc.
         {
           g_usleep ( delay );
@@ -747,5 +936,5 @@ menu_run (void)
     case RESUME:
     default: return MENU_RESUME;
     }
-
+  
 } // end menu_run

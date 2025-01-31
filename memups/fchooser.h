@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Adrià Giménez Pastor.
+ * Copyright 2020-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -54,5 +54,8 @@ init_fchooser (
                const bool   empty_entry,
                const bool   verbose
                );
+
+void
+fchooser_hide_cursor (void);
 
 #endif // __FCHOOSER_H__

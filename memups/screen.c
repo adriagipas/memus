@@ -75,6 +75,8 @@ static struct
   
 } _fb;
 
+static bool _cursor_enabled;
+
 
 
 
@@ -242,6 +244,60 @@ update_fb (
 } // end update_fb
 
 
+// Aquesta funció agafa dos coordenades x/y que fan referència a la
+// finestra i les reajusta perquè facen referència al framebuffer. Si
+// estan fora del framebuffer torna false.
+static bool
+translate_xy_cursor_coords (
+                            Sint32             *x,
+                            Sint32             *y,
+                            const mouse_area_t *mouse_area
+                            )
+{
+  
+  bool ret;
+  double xr,yr,aw,ah;
+  mouse_area_t area;
+
+  
+  if ( _fb.tex != NULL )
+    {
+
+      // Àrea del ratolí.
+      if ( mouse_area == NULL )
+        {
+          area.area= &_fb.area;
+          area.w= _fb.tex->w;
+          area.h= _fb.tex->h;
+        }
+      else area= *mouse_area;
+      
+      // Tradueix.
+      aw= area.area->x1-area.area->x0;
+      ah= area.area->y1-area.area->y0;
+      xr= ((double) *x) / _wsize.width;
+      yr= ((double) *y) / _wsize.height;
+      if ( xr >= area.area->x0 && xr <= area.area->x1 &&
+           yr >= area.area->y0 && yr <= area.area->y1 )
+        {
+          *x= (Sint32) (((xr-area.area->x0)/aw)*area.w + 0.5);
+          if ( *x >= area.w ) *x= area.w-1;
+          else if ( *x < 0 ) *x= 0;
+          *y= (Sint32) (((yr-area.area->y0)/ah)*area.h + 0.5);
+          if ( *y >= area.h ) *y= area.h-1;
+          else if ( *y < 0 ) *y= 0;
+          ret= true;
+        }
+      else ret= false;
+      
+    }
+  else ret= false;
+  
+  return ret;
+  
+} // end translate_xy_cursor_coords
+
+
 
 
 /**********************/
@@ -276,6 +332,9 @@ init_screen (
   // Inicialitza frame buffer.
   _fb.tex= NULL;
 
+  // Altres.
+  _cursor_enabled= false;
+  
   windowtex_show ();
   
 } // end init_screen
@@ -283,7 +342,8 @@ init_screen (
 
 bool
 screen_next_event (
-        	   SDL_Event *event
+        	   SDL_Event          *event,
+                   const mouse_area_t *mouse_area
         	   )
 {
 
@@ -297,6 +357,33 @@ screen_next_event (
         if ( event->window.event == SDL_WINDOWEVENT_EXPOSED )
           draw ();
         else return true;
+        break;
+
+        // Si està habilitat el suport del cursor, tots els events
+        // fora de l'àrea del framebuffer s'ignoren, i en els que
+        // estan dins abans de tornar-los es reajusten les coordenades
+        // perquè facen referència al framebuffer i no a la finestra.
+      case SDL_MOUSEMOTION:
+        if ( _cursor_enabled )
+          {
+            if ( translate_xy_cursor_coords ( &(event->motion.x),
+                                              &(event->motion.y),
+                                              mouse_area ) )
+              return true;
+          }
+        break;
+      case SDL_MOUSEBUTTONDOWN:
+      case SDL_MOUSEBUTTONUP:
+        if ( _cursor_enabled )
+          {
+            if ( translate_xy_cursor_coords ( &(event->button.x),
+                                              &(event->button.y),
+                                              mouse_area ) )
+              return true;
+          }
+        break;
+      case SDL_MOUSEWHEEL:
+        if ( _cursor_enabled ) return true;
         break;
       default: return true;
       }
@@ -417,3 +504,15 @@ screen_draw_body (void)
     windowtex_draw_tex ( _fb.tex, _fb.src, &_fb.area );
   
 } // end screen_draw_body
+
+
+void
+screen_enable_cursor (
+                      const bool enable
+                      )
+{
+  
+  _cursor_enabled= enable;
+  windowtex_show_cursor ( false );
+  
+} // end screen_enable_cursor

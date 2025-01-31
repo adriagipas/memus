@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2023 Adrià Giménez Pastor.
+ * Copyright 2015-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -31,6 +31,7 @@
 
 #include "background.h"
 #include "conf.h"
+#include "cursor.h"
 #include "dirs.h"
 #include "effects.h"
 #include "error.h"
@@ -58,6 +59,12 @@
 /* Amplaria dels banners. */
 #define FCBANNER_CDIR_WIDTH (BG_WIDTH-16-2)
 #define FCBANNER_WIDTH (FCBANNER_CDIR_WIDTH-8)
+
+#define MOUSE_COUNTER 100
+
+#define ENTRY_BEGIN_Y 18
+#define ENTRY_HEIGHT 10
+#define OFFY 10
 
 
 
@@ -136,6 +143,18 @@ static struct
   int              fgcolor_entry;
   int              fgcolor_selected_entry;
   int              fgcolor_sc;
+
+  int              mouse_x;
+  int              mouse_y;
+  bool             mouse_hide;
+  int              mouse_counter;
+  int              mouse_color_black;
+  int              mouse_color_white;
+  enum {
+    MOUSE_NO_ACTION,
+    MOUSE_SEL_ENTRY,
+    MOUSE_ESCAPE
+  }                mouse_action;
   
 } _fchooser;
 
@@ -279,7 +298,27 @@ error_dialog_draw (void)
 } /* end error_dialog_draw */
 
 
-/* Un -1 indica que s'ha forçat l'eixida. */
+static void
+mouse_error_cb (
+                SDL_Event *event,
+                void      *udata
+                )
+{
+  
+  if ( _fchooser.mouse_action == MOUSE_NO_ACTION )
+    {
+      switch ( event->type )
+        {
+        case SDL_MOUSEBUTTONDOWN:
+          _fchooser.mouse_action= MOUSE_ESCAPE;
+          break;
+        }
+    }
+  
+} // end mouse_error_cb
+
+
+// Un -1 indica que s'ha forçat l'eixida.
 static int
 error_dialog (void)
 {
@@ -292,14 +331,17 @@ error_dialog (void)
     {
       mpad_clear ();
       g_usleep ( 20000 );
-      buttons= mpad_check_buttons ();
+      _fchooser.mouse_action= MOUSE_NO_ACTION;
+      buttons= mpad_check_buttons ( mouse_error_cb, NULL );
       if ( buttons&K_QUIT ) return -1;
-      else if ( buttons&(K_ESCAPE|K_BUTTON) ) return 0;
+      else if ( buttons&(K_ESCAPE|K_BUTTON) ||
+                _fchooser.mouse_action == MOUSE_ESCAPE )
+        return 0;
     }
   
   return 0;
   
-} /* end error_dialog */
+} // end error_dialog
 
 
 /* Torna CONTINUE, ERROR o QUIT. */
@@ -335,6 +377,130 @@ run_romfn (
 
 
 /*** FCHOOSER *****************************************************************/
+static void fchooser_move_up (void);
+static void fchooser_move_down (void);
+
+static void
+fchooser_draw_cursor (void)
+{
+
+  if ( !_fchooser.mouse_hide )
+    {
+      cursor_draw ( _fb, BG_WIDTH, BG_HEIGHT,
+                    _fchooser.mouse_x, _fchooser.mouse_y,
+                    _fchooser.mouse_color_black,
+                    _fchooser.mouse_color_white );
+      if ( --(_fchooser.mouse_counter) == 0 )
+        _fchooser.mouse_hide= true;
+    }
+  
+} // end fchooser_draw_cursor
+
+
+static int
+fchooser_translate_mousexy2entry (
+                                  const int x,
+                                  const int y
+                                  )
+{
+  
+  int x0,xf,y0,yf,nentries,ret,tmp;
+
+
+  x0= 8;
+  xf= BG_WIDTH - 16;
+  nentries= _fchooser.last-_fchooser.first+1;
+  y0= OFFY+ENTRY_BEGIN_Y;
+  yf= y0 + nentries*(ENTRY_HEIGHT+1);
+  if ( x >= x0 && x < xf && y >= y0 && y < yf )
+    {
+      tmp= y-y0;
+      if ( tmp%(ENTRY_HEIGHT+1) == ENTRY_HEIGHT )
+        ret= -1;
+      else
+        ret= _fchooser.first + tmp/(ENTRY_HEIGHT+1);
+    }
+  else ret= -1;
+  
+  return ret;
+  
+} // fchooser_translate_mousexy2entry
+
+
+static void
+fchooser_mouse_update_pos (
+                           const int x,
+                           const int y
+                           )
+{
+
+  _fchooser.mouse_x= x;
+  _fchooser.mouse_y= y;
+  _fchooser.mouse_hide= false;
+  _fchooser.mouse_counter= MOUSE_COUNTER;
+  
+} // end mouse_update_pos
+
+
+static void
+mouse_cb (
+          SDL_Event *event,
+          void      *udata
+          )
+{
+
+  int sel;
+
+  if ( _fchooser.mouse_action == MOUSE_NO_ACTION )
+    {
+      switch ( event->type )
+        {
+        case SDL_MOUSEBUTTONUP:
+          fchooser_mouse_update_pos ( event->button.x, event->button.y );
+          break;
+        case SDL_MOUSEMOTION:
+          fchooser_mouse_update_pos ( event->motion.x, event->motion.y );
+          break;
+        case SDL_MOUSEBUTTONDOWN:
+          fchooser_mouse_update_pos ( event->button.x, event->button.y );
+          switch ( event->button.button )
+            {
+              // Botó esquerre
+            case SDL_BUTTON_LEFT:
+              sel= fchooser_translate_mousexy2entry ( event->button.x,
+                                                      event->button.y );
+              if ( sel != -1 )
+                {
+                  if ( sel < _fchooser.current )
+                    {
+                      while ( sel < _fchooser.current )
+                        fchooser_move_up ();
+                    }
+                  else if ( sel > _fchooser.current )
+                    {
+                      while ( sel > _fchooser.current )
+                        fchooser_move_down ();
+                    }
+                  if ( event->button.clicks > 1 )
+                    _fchooser.mouse_action= MOUSE_SEL_ENTRY;
+                }
+              break;
+              // Botó dret.
+            case SDL_BUTTON_RIGHT:
+              _fchooser.mouse_action= MOUSE_ESCAPE;
+              break;
+            }
+          break;
+        case SDL_MOUSEWHEEL:
+          if ( event->wheel.y > 0 ) fchooser_move_up ();
+          else if ( event->wheel.y < 0 ) fchooser_move_down ();
+          break;
+        }
+    }
+  
+} // end mouse_cb
+
+
 /* Pot tornar NULL. */
 static gchar *
 fchooser_read_cdir (void)
@@ -526,8 +692,15 @@ init_fchooser (void)
   _fchooser.fgcolor_sc= 0x007; /* Roig. */
   
   fchooser_fill_entries ();
+
+  _fchooser.mouse_y= 0;
+  _fchooser.mouse_hide= true;
+  _fchooser.mouse_counter= 0;
+  _fchooser.mouse_color_black= 0x000;
+  _fchooser.mouse_color_white= 0x16D;
+  screen_enable_cursor ( true );
   
-} /* end init_fchooser */
+} // end init_fchooser
 
 
 static void
@@ -663,46 +836,61 @@ static void
 fchooser_draw (void)
 {
 
-  static const int OFFY= 10;
-
   guint n;
   int offy;
   const fchooser_node_t *node;
   
   
-  /* Background */
+  // Background
   draw_background ();
 
-  /* Directori actual. */
+  // Directori actual.
   effect_fade ( _fb, BG_WIDTH, 8, OFFY, BG_WIDTH-16, 10, 0.70 );
   t8biso_banner_draw ( &(_fchooser.banners[0]), _fb, BG_WIDTH, 9, OFFY+1,
         	       _fchooser.fgcolor_cdir, 0, T8BISO_BG_TRANS );
 
-  /* Entrades. */
-  offy= OFFY+18;
+  // Entrades.
+  offy= OFFY+ENTRY_BEGIN_Y;
   for ( n= _fchooser.first; n <= _fchooser.last; ++n )
     {
       node= &(_fchooser.v[n]);
       effect_interpolate_color ( _fb, BG_WIDTH, 8, offy,
-        			 BG_WIDTH-16, 10, 0x1FF, 0.60 );
+        			 BG_WIDTH-16, ENTRY_HEIGHT,
+                                 0x1FF, 0.60 );
       if ( node->is_dir ) draw_folder ( 8, offy, _fchooser.fgcolor_entry );
       t8biso_banner_draw ( node->banner, _fb, BG_WIDTH, 8+9, offy+1,
         		   (n==_fchooser.current) ?
         		   _fchooser.fgcolor_selected_entry :
         		   _fchooser.fgcolor_entry,
         		   0, T8BISO_BG_TRANS );
-      offy+= 11; /* 1 píxel blanc. */
+      offy+= ENTRY_HEIGHT+1; // 1 píxel blanc.
     }
 
-  /* Barra deslliçant. */
+  // Barra deslliçant.
   if ( _fchooser.N > FCNVIS )
     draw_scrollbar ( BG_WIDTH-5, OFFY+18, 2, 11*FCNVIS-1, _fchooser.first,
         	     FCNVIS, _fchooser.N, _fchooser.fgcolor_sc );
+
+  // Ratolí.
+  fchooser_draw_cursor ();
   
-  /* Updateja. */
+  // Updateja.
   screen_update ( _fb, NULL );
   
-} /* end fchooser_draw */
+} // end fchooser_draw
+
+
+static void
+fchooser_hide_cursor (void)
+{
+
+  if ( !_fchooser.mouse_hide )
+    {
+      _fchooser.mouse_hide= true;
+      fchooser_draw ();
+    }
+  
+} // end fchooser_hide_cursor
 
 
 /* Torna -1 per a indicar que cal eixir. */
@@ -720,15 +908,19 @@ fchooser_run (void)
       mpad_clear ();
       fchooser_draw ();
       g_usleep ( 20000 ); /* 20ms */
-      
-      buttons= mpad_check_buttons ();
+
+      _fchooser.mouse_action= MOUSE_NO_ACTION;
+      buttons= mpad_check_buttons ( mouse_cb, NULL );
       if ( buttons&K_QUIT ) return -1;
-      else if ( buttons&K_ESCAPE )
+      else if ( buttons&K_ESCAPE ||
+                _fchooser.mouse_action == MOUSE_ESCAPE )
         {
+          fchooser_hide_cursor ();
           if ( menu_run ( MENU_MODE_MAINMENU ) == MENU_QUIT )
             return -1;
         }
-      else if ( buttons&K_BUTTON )
+      else if ( buttons&K_BUTTON ||
+                _fchooser.mouse_action == MOUSE_SEL_ENTRY )
         {
           ret= fchooser_select_current_file ();
           if ( ret == -1 ) return ret;

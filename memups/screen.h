@@ -30,6 +30,13 @@
 #include "conf.h"
 
 #include "PSX.h"
+#include "windowtex.h"
+
+typedef struct
+{
+  const draw_area_t *area;
+  int w,h;
+} mouse_area_t;
 
 void
 close_screen (void);
@@ -45,7 +52,8 @@ init_screen (
 // Llig el següent event. Si no n'hi han torna false
 bool
 screen_next_event (
-        	   SDL_Event *event
+        	   SDL_Event          *event,
+                   const mouse_area_t *mouse_area // Pot ser NULL
         	   );
 
 void
@@ -85,5 +93,10 @@ screen_show_error (
 // Executa l'ordre de dibuixar el contingut.
 void
 screen_draw_body (void);
+
+void
+screen_enable_cursor (
+                      const bool enable
+                      );
 
 #endif // __SCREEN_H__

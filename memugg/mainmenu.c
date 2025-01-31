@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2022 Adrià Giménez Pastor.
+ * Copyright 2015-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -887,6 +887,19 @@ fchooser_draw (void)
 } // end fchooser_draw
 
 
+static void
+fchooser_hide_cursor (void)
+{
+
+  if ( !_fchooser.mouse_hide )
+    {
+      _fchooser.mouse_hide= true;
+      fchooser_draw ();
+    }
+  
+} // end fchooser_hide_cursor
+
+
 // Torna -1 per a indicar que cal eixir.
 static int
 fchooser_run (void)
@@ -908,6 +921,7 @@ fchooser_run (void)
       else if ( buttons&K_ESCAPE ||
                 _fchooser.mouse_action == MOUSE_ESCAPE )
         {
+          fchooser_hide_cursor ();
           if ( menu_run ( MENU_MODE_MAINMENU ) == MENU_QUIT )
             return -1;
         }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2023 Adrià Giménez Pastor.
+ * Copyright 2015-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -24,6 +24,8 @@
 #ifndef __MPAD_H__
 #define __MPAD_H__
 
+#include <SDL.h>
+
 /* Botons. */
 #define K_UP 0x1
 #define K_DOWN 0x2
@@ -38,10 +40,16 @@
 #define K_QUIT 0x400
 #define K_BUTTON (K_A|K_B|K_C|K_X|K_Y|K_Z|K_START)
 
+// S'utilitza per a processar els events del ratolí.
+typedef void (*mpad_mouse_callback_t) (SDL_Event *event, void *);
+
 void
 mpad_clear (void);
 
 int
-mpad_check_buttons (void);
+mpad_check_buttons (
+                    mpad_mouse_callback_t  cb, // Pot ser NULL
+                    void                  *udata // Pot ser NULL
+                    );
 
-#endif /* __MPAD_H__ */
+#endif // __MPAD_H__

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2022 Adrià Giménez Pastor.
+ * Copyright 2016-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -259,12 +259,20 @@ check_signals (
   while ( screen_next_event ( &event ) )
     switch ( event.type )
       {
-
+        
       case SDL_QUIT:
         _quit= TRUE;
         *stop= NES_TRUE;
         return;
 
+      case SDL_MOUSEBUTTONDOWN:
+        if ( event.button.button == SDL_BUTTON_RIGHT )
+          {
+            *stop= NES_TRUE;
+            return;
+          }
+        break;
+        
         /* Tecles ràpides. No hi ha BREAK APOSTA!!! D'aquesta manera
            es passa al pad. */
       case SDL_KEYDOWN:
@@ -323,7 +331,8 @@ loop (void)
   gint64 t0,tf,delay;
   NES_Bool stop;
   
-  
+
+  screen_enable_cursor ( true );
   stop= NES_FALSE;
   t0= g_get_monotonic_time ();
   cc_iter= (int) ((_ciclespersec/1000000.0)*SLEEP + 0.5);

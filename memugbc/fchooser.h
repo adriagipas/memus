@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2024 Adrià Giménez Pastor.
+ * Copyright 2015-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -116,5 +116,10 @@ int
 fchooser_error_dialog (
                        fchooser_t *fc
                        );
+
+void
+fchooser_hide_cursor (
+                      fchooser_t *fc
+                      );
 
 #endif // __FCHOOSER_H__
