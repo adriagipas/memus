@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2022 Adrià Giménez Pastor.
+ * Copyright 2014-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -102,8 +102,8 @@ try_open_joy (
         _joy[ind].type= PAD_JOY_XBOX360;
       else
         {
-          warning ( "model de joystick no suportat: %s", name );
-          continue;
+          warning ( "model de joystick desconegut: %s", name );
+          _joy[ind].type= PAD_JOY_UNK;
         }
       
       // Intenta obrir.

@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2022 Adrià Giménez Pastor.
+ * Copyright 2014-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -31,7 +31,8 @@
 #include "PSX.h"
 
 enum {
-  PAD_JOY_XBOX360
+  PAD_JOY_XBOX360,
+  PAD_JOY_UNK
 };
 
 void
