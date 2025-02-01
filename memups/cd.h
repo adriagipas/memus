@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Adrià Giménez Pastor.
+ * Copyright 2020-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -24,6 +24,7 @@
 #ifndef __MEMU_CD_H__
 #define __MEMU_CD_H__
 
+#include <glib.h>
 #include <stdbool.h>
 
 void
@@ -43,6 +44,14 @@ bool
 cd_set_disc (
              bool *quit
              );
+
+// Aquesta funció fixa un nou CD en el simulador a partir del nom del
+// fitxer. Torna cert si tot ha anat bé, false en cas d'error. En cas
+// d'error l'anterior CD continua ficat.
+bool
+cd_set_disc_from_file_name (
+                            const gchar *file_name
+                            );
 
 bool
 cd_is_empty (void);

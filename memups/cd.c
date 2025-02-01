@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 Adrià Giménez Pastor.
+ * Copyright 2020-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -85,8 +85,6 @@ cd_set_disc (
   
   bool ret,stop;
   const char *fn;
-  char *err;
-  CD_Disc *cd_new;
   
   
   init_fchooser ( "cd", "INSERTA CDROM", "[.](cue)$", true, _verbose );
@@ -106,23 +104,12 @@ cd_set_disc (
         }
       else
         {
-          if ( _verbose ) fprintf ( stderr, "Carregant el CD de '%s'\n", fn );
-          cd_new= CD_disc_new ( fn, &err );
-          if ( cd_new == NULL )
+          if ( !cd_set_disc_from_file_name ( fn ) )
             {
-              warning ( "no s'ha pogut llegir correctament '%s': %s",
-                        fn, err );
-              free ( err );
               if ( fchooser_error_dialog () == -1 )
                 *quit= stop= true;
             }
-          else // Inserta nou CD.
-            {
-              if ( _disc != NULL ) CD_disc_free ( _disc );
-              _disc= cd_new;
-              PSX_set_disc ( _disc );
-              stop= true;
-            }
+          else stop= true;
         }
     }
   close_fchooser ( "cd" );
@@ -130,6 +117,39 @@ cd_set_disc (
   return ret;
   
 } // end cd_set_disc
+
+
+bool
+cd_set_disc_from_file_name (
+                            const gchar *file_name
+                            )
+{
+
+  char *err;
+  CD_Disc *cd_new;
+  bool ret;
+  
+  
+  if ( _verbose ) fprintf ( stderr, "Carregant el CD de '%s'\n", file_name );
+  cd_new= CD_disc_new ( file_name, &err );
+  if ( cd_new == NULL )
+    {
+      warning ( "no s'ha pogut llegir correctament '%s': %s",
+                file_name, err );
+      free ( err );
+      ret= false;
+    }
+  else // Inserta nou CD.
+    {
+      if ( _disc != NULL ) CD_disc_free ( _disc );
+      _disc= cd_new;
+      PSX_set_disc ( _disc );
+      ret= true;
+    }
+  
+  return ret;
+  
+} // end cd_set_disc_from_file_name
 
 
 bool

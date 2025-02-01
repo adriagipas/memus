@@ -253,7 +253,9 @@ close_frontend (void)
 
 
 menu_response_t
-frontend_run (void)
+frontend_run (
+              const gchar *disc_fn
+              )
 {
   
   menu_response_t ret;
@@ -271,6 +273,7 @@ frontend_run (void)
   PSX_init ( bios, &_frontend, NULL, _renderer );
   PSX_plug_controllers ( _controllers[0], _controllers[1] );
   memc_replug ();
+  if ( disc_fn != NULL ) cd_set_disc_from_file_name ( disc_fn );
   
   // Executa loop.
   for (;;)
@@ -280,22 +283,6 @@ frontend_run (void)
       if ( _quit ) { ret= MENU_QUIT; break; }
       ret= menu_run ();
       if ( ret == MENU_RESET ) _reset= TRUE;
-      /*
-      else if ( ret == MENU_REINIT )
-        {
-          close_sram ();
-          close_eeprom ();
-          model= model_get_val ();
-          _ciclespersec= model&MD_MODEL_PAL ?
-            MD_CICLES_PER_SEC_PAL : MD_CICLES_PER_SEC_NTSC;
-          _frontend.plugged_devs= pad_get_devices (); // Guarda l'última
-        					      //  configuració.
-          MD_close ();
-          MD_init ( rom, model, &_frontend, NULL );
-          init_eeprom ( rom_id, eeprom_fn, verbose );
-          init_sram ( rom_id, sram_fn, verbose );
-        }
-      */
       else if ( ret != MENU_RESUME ) break;
     }
   

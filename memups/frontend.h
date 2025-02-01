@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2022 Adrià Giménez Pastor.
+ * Copyright 2013-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -24,6 +24,7 @@
 #ifndef __FRONTEND_H__
 #define __FRONTEND_H__
 
+#include <glib.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -35,7 +36,9 @@ void
 close_frontend (void);
 
 menu_response_t
-frontend_run (void);
+frontend_run (
+              const gchar *disc_fn // Pot ser NULL
+              );
 
 void
 init_frontend (

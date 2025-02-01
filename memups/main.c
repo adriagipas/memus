@@ -47,7 +47,7 @@
 /* MACROS */
 /**********/
 
-#define NUM_ARGS 0
+#define NUM_ARGS 1
 
 
 
@@ -56,6 +56,13 @@
 /* TIPUS */
 /*********/
 
+
+struct args
+{
+
+  const gchar *disc_fn;
+  
+};
 
 struct opts
 {
@@ -79,6 +86,7 @@ static void
 usage (
        int          *argc,
        char        **argv[],
+       struct args  *args,
        struct opts  *opts
        )
 {
@@ -120,7 +128,8 @@ usage (
   
   // Paresja opcions i obté valors.
   err= NULL;
-  context= g_option_context_new ( "executa simulador de PlayStation" );
+  context= g_option_context_new
+    ( "<disc> - executa simulador de PlayStation" );
   g_option_context_add_main_entries ( context, entries, NULL );
   if ( !g_option_context_parse ( context, argc, argv, &err ) )
     error ( "error al parsejar la línia de comandaments: %s", err->message );
@@ -128,8 +137,11 @@ usage (
   *opts= vals;
   
   // Comprova arguments.
+  args->disc_fn= NULL;
   if ( *argc-1 > NUM_ARGS )
     error ( "número d'arguments incorrecte" );
+  else if ( *argc-1 == 1 )
+    args->disc_fn= (*argv)[1];
   
 } // end usage
 
@@ -177,6 +189,7 @@ get_title (
 
 static void
 run (
+     const struct args *args,
      const struct opts *opts
      )
 {
@@ -196,7 +209,7 @@ run (
       g_free ( title );
       
       // Executa.
-      frontend_run ();
+      frontend_run ( args->disc_fn );
       
       // Allibera memòria i tanca
       close_frontend ();
@@ -218,17 +231,18 @@ run (
 
 int main ( int argc, char *argv[] )
 {
-  
+
+  struct args args;
   struct opts opts;
   
   
   setlocale ( LC_ALL, "" );
   
   // Parseja línea de comandaments.
-  usage ( &argc, &argv, &opts );
-
+  usage ( &argc, &argv, &args, &opts );
+  
   // Executa.
-  run ( &opts );
+  run ( &args, &opts );
   
   // Despedida.
   free_opts ( &opts );
