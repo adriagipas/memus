@@ -277,7 +277,7 @@ run_with_rom (
   
       // Executa.
       frontend_run ( &rom, rom_id, opts->sram_fn, opts->state_prefix,
-                     MENU_MODE_INGAME_NOMAINMENU, opts->verbose );
+                     MENU_MODE_INGAME_NOMAINMENU, NULL, opts->verbose );
   
       // Allibera memòria. i tanca
       close_frontend ();

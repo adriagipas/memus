@@ -354,23 +354,24 @@ run_romfn (
   const char *rom_id;
   menu_response_t ret;
   
-
-  /* Inicialitza. */
+  
+  // Inicialitza.
   if ( load_rom ( fn, &rom, _verbose ) != 0 )
     return ERROR;
   rom_id= get_rom_id ( &rom, _verbose );
   
-  /* Executa. */
+  // Executa.
   ret= frontend_run ( &rom, rom_id, NULL, NULL,
-        	      MENU_MODE_INGAME_MAINMENU, _verbose );
+        	      MENU_MODE_INGAME_MAINMENU,
+                      fn, _verbose );
   
-  /* Tanca. */
+  // Tanca.
   NES_rom_free ( rom );
   screen_set_tvmode ( NES_PAL );
   
   return ret==MENU_QUIT ? QUIT : CONTINUE;
   
-} /* end run_romfn */
+} // end run_romfn
 
 
 /*** FCHOOSER *****************************************************************/
@@ -945,17 +946,18 @@ main_menu (
            )
 {
 
-  /* Prepara. */
+  // Prepara.
   _verbose= verbose;
   _conf= conf;
   hud_hide ();
   init_background ();
   init_fchooser ();
   
-  /* Executa. */
-  fchooser_run ();
+  // Executa.
+  if ( frontend_resume ( MENU_MODE_INGAME_MAINMENU, verbose ) != MENU_QUIT )
+    fchooser_run ();
   
-  /* Allibera. */
+  // Allibera.
   close_fchooser ();
   
-} /* end main_menu */
+} // end main_menu

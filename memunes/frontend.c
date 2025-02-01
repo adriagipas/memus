@@ -27,6 +27,7 @@
 #include <SDL.h>
 #include <SDL_image.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -35,10 +36,12 @@
 #include "hud.h"
 #include "menu.h"
 #include "pad.h"
+#include "rom.h"
 #include "screen.h"
 #include "sound.h"
 #include "sram.h"
 #include "state.h"
+#include "suspend.h"
 #include "tiles8b.h"
 #include "t8biso.h"
 #include "tvmode.h"
@@ -244,6 +247,46 @@ load_state (
 
 
 static void
+suspend_clear (
+               const gboolean verbose
+               )
+{
+  suspend_write_rom_file_name ( "", verbose );
+} // end suspend_clear
+
+
+static void
+suspend (
+         const gchar    *rom_fn,
+         const gboolean  verbose
+         )
+{
+  
+  FILE *f;
+  
+  
+  // Neteja el nom de la rom.
+  if ( !suspend_write_rom_file_name ( "", verbose ) )
+    return;
+  
+  // Intenta escriure l'estat
+  f= get_suspend_state_file ( true, verbose );
+  if ( f  == NULL ) return;
+  if ( NES_save_state ( f ) != 0 )
+    {
+      warning ( "No s'ha pogut desar l'estat" );
+      fclose ( f );
+      return;
+    }
+  fclose ( f );
+  
+  // Desa el nom de la rom.
+  suspend_write_rom_file_name ( rom_fn, verbose );
+  
+} // end suspend
+
+
+static void
 check_signals (
                NES_Bool *reset,
                NES_Bool *stop,
@@ -379,6 +422,119 @@ get_prgram (
 } /* end get_prgram */
 
 
+static menu_response_t
+frontend_run_common (
+                     const NES_Rom      *rom,
+                     const char         *rom_id,
+                     const char         *sram_fn,
+                     const char         *state_prefix,
+                     const menu_mode_t   menu_mode,
+                     const gchar        *rom_fn,
+                     const bool          resume_exec,
+                     const int           verbose
+                     )
+{
+
+  static const NES_Frontend frontend=
+    {
+      _warning,
+      screen_update,
+      sound_play,
+      pad_check_pad1_buttons,
+      pad_check_pad2_buttons,
+      check_signals,
+      NULL
+    };
+  
+  menu_response_t ret;
+  NES_TVMode tvmode;
+  NES_Error err;
+  FILE *f;
+  
+  
+  ret= MENU_QUIT_MAINMENU;
+  _quit= _reset= FALSE;
+  init_tvmode ( rom_id, rom, verbose );
+  init_sram ( rom_id, sram_fn, verbose );
+  init_state ( rom_id, state_prefix, verbose );
+  tvmode= tvmode_get_val ();
+  _ciclespersec= (tvmode==NES_PAL) ?
+    NES_CPU_PAL_CYCLES_PER_SEC : NES_CPU_NTSC_CYCLES_PER_SEC;
+  screen_set_tvmode ( tvmode );
+  sound_set_tvmode ( tvmode );
+  err= NES_init ( rom, tvmode, &frontend, get_prgram ( rom ), NULL );
+  switch ( err )
+    {
+    case NES_BADROM:
+      warning ( "el format de la ROM no és correcte" );
+      goto error;
+    case NES_EUNKMAPPER:
+      warning ( "el mapper de la ROM és desconegut" );
+      goto error;
+    default: break;
+    }
+  if ( resume_exec )
+    {
+      f= get_suspend_state_file ( false, verbose );
+      if ( f == NULL ) goto error_resum_exec;
+      if ( NES_load_state ( f ) != 0 )
+        {
+          warning ( "No s'ha pogut llegir l'estat, o l'estat no és vàlid" );
+          fclose ( f );
+          goto error_resum_exec;
+        }
+      fclose ( f );
+    }
+  for (;;)
+    {
+      pad_clear ();
+      loop ();
+      if ( _quit )
+        {
+          ret= MENU_QUIT;
+          if ( rom_fn != NULL ) suspend ( rom_fn, verbose );
+          break;
+        }
+      ret= menu_run ( menu_mode );
+      if ( ret == MENU_RESET ) _reset= TRUE;
+      else if ( ret == MENU_REINIT )
+        {
+          close_sram ();
+          tvmode= tvmode_get_val ();
+          _ciclespersec= (tvmode==NES_PAL) ?
+            NES_CPU_PAL_CYCLES_PER_SEC : NES_CPU_NTSC_CYCLES_PER_SEC;
+          screen_set_tvmode ( tvmode );
+          sound_set_tvmode ( tvmode );
+          err= NES_init ( rom, tvmode, &frontend, get_prgram ( rom ), NULL );
+          assert ( err == NES_NOERROR );
+          init_sram ( rom_id, sram_fn, verbose );
+        }
+      else if ( ret != MENU_RESUME )
+        {
+          if ( rom_fn != NULL )
+            {
+              if ( ret == MENU_QUIT ) suspend ( rom_fn, verbose );
+              else                    suspend_clear ( verbose );
+            }
+          break;
+        }
+    }
+  close_sram ();
+  close_tvmode ();
+  
+  return ret;
+
+ error:
+  close_sram ();
+  return -1;
+ error_resum_exec:
+  suspend_clear ( verbose );
+  close_sram ();
+  return MENU_QUIT_MAINMENU;
+  
+} // end frontend_run_common
+
+
 
 
 /**********************/
@@ -405,78 +561,59 @@ frontend_run (
               const char         *sram_fn,
               const char         *state_prefix,
               const menu_mode_t   menu_mode,
+              const gchar        *rom_fn,
               const int           verbose
               )
 {
+  return frontend_run_common ( rom, rom_id, sram_fn, state_prefix,
+                               menu_mode, rom_fn, false, verbose );  
+} // end frontend_run
 
-  static const NES_Frontend frontend=
-    {
-      _warning,
-      screen_update,
-      sound_play,
-      pad_check_pad1_buttons,
-      pad_check_pad2_buttons,
-      check_signals,
-      NULL
-    };
+
+menu_response_t
+frontend_resume (
+                 const menu_mode_t menu_mode,
+                 const int         verbose
+                 )
+{
+
+  gchar *rom_fn;
+  NES_Rom rom;
+  const char *rom_id;
+  int ret;
   
-  menu_response_t ret;
-  NES_TVMode tvmode;
-  NES_Error err;
+
+  // Prepara.
+  rom_fn= NULL;
+  rom.prgs= NULL;
+  rom.chrs= NULL;
+  rom.trainer= NULL;
+
+  // Recupera el nom de la rom.
+  rom_fn= suspend_read_rom_file_name ( verbose );
+  if ( rom_fn == NULL ) goto error;
   
+  // Carrega la ROM.
+  if ( load_rom ( rom_fn, &rom, verbose ) != 0 )
+    goto error;
+  rom_id= get_rom_id ( &rom, verbose );
+
+  // Executa.
+  ret= frontend_run_common ( &rom, rom_id, NULL, NULL,
+                             menu_mode, rom_fn, true, verbose );
   
-  ret= MENU_QUIT_MAINMENU;
-  _quit= _reset= FALSE;
-  init_tvmode ( rom_id, rom, verbose );
-  init_sram ( rom_id, sram_fn, verbose );
-  init_state ( rom_id, state_prefix, verbose );
-  tvmode= tvmode_get_val ();
-  _ciclespersec= (tvmode==NES_PAL) ?
-    NES_CPU_PAL_CYCLES_PER_SEC : NES_CPU_NTSC_CYCLES_PER_SEC;
-  screen_set_tvmode ( tvmode );
-  sound_set_tvmode ( tvmode );
-  err= NES_init ( rom, tvmode, &frontend, get_prgram ( rom ), NULL );
-  switch ( err )
-    {
-    case NES_BADROM:
-      warning ( "el format de la ROM no és correcte" );
-      goto error;
-    case NES_EUNKMAPPER:
-      warning ( "el mapper de la ROM és desconegut" );
-      goto error;
-    default: break;
-    }
-  for (;;)
-    {
-      pad_clear ();
-      loop ();
-      if ( _quit ) { ret= MENU_QUIT; break; }
-      ret= menu_run ( menu_mode );
-      if ( ret == MENU_RESET ) _reset= TRUE;
-      else if ( ret == MENU_REINIT )
-        {
-          close_sram ();
-          tvmode= tvmode_get_val ();
-          _ciclespersec= (tvmode==NES_PAL) ?
-            NES_CPU_PAL_CYCLES_PER_SEC : NES_CPU_NTSC_CYCLES_PER_SEC;
-          screen_set_tvmode ( tvmode );
-          sound_set_tvmode ( tvmode );
-          err= NES_init ( rom, tvmode, &frontend, get_prgram ( rom ), NULL );
-          assert ( err == NES_NOERROR );
-          init_sram ( rom_id, sram_fn, verbose );
-        }
-      else if ( ret != MENU_RESUME ) break;
-    }
-  close_sram ();
-  close_tvmode ();
+  // Allibera memòria.
+  g_free ( rom_fn );
+  NES_rom_free ( rom );
   
   return ret;
 
  error:
-  close_sram ();
-  return -1;
+  NES_rom_free ( rom );
+  if ( rom_fn != NULL ) g_free ( rom_fn );
+  return MENU_QUIT_MAINMENU;
   
-} /* end frontend_run */
+} // end frontend_resume
 
 
 void
@@ -490,7 +627,7 @@ init_frontend (
   int ret;
   
 
-  /* Inicialitza. */
+  // Inicialitza.
   ret= SDL_Init ( SDL_INIT_AUDIO|SDL_INIT_VIDEO|
                   SDL_INIT_JOYSTICK|SDL_INIT_EVENTS );
   if ( ret != 0 )
@@ -503,5 +640,6 @@ init_frontend (
   init_t8biso ();
   init_menu ( conf, big_screen );
   init_hud ();
+  init_suspend ();
   
-} /* end init_frontend */
+} // end init_frontend

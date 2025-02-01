@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2022 Adrià Giménez Pastor.
+ * Copyright 2016-2025 Adrià Giménez Pastor.
  *
  * This file is part of adriagipas/memus.
  *
@@ -24,6 +24,8 @@
 #ifndef __FRONTEND_H__
 #define __FRONTEND_H__
 
+#include <glib.h>
+
 #include "conf.h"
 #include "menu.h"
 #include "NES.h"
@@ -33,13 +35,20 @@ close_frontend (void);
 
 menu_response_t
 frontend_run (
-              const NES_Rom      *rom,
-              const char         *rom_id,
-              const char         *sram_fn,
-              const char         *state_prefix,
-              const menu_mode_t   menu_mode,
-              const int           verbose
+              const NES_Rom     *rom,
+              const char        *rom_id,
+              const char        *sram_fn,
+              const char        *state_prefix,
+              const menu_mode_t  menu_mode,
+              const gchar       *rom_fn, // Pot ser NULL. Per a la suspensió.
+              const int          verbose
               );
+
+menu_response_t
+frontend_resume (
+                 const menu_mode_t menu_mode,
+                 const int         verbose
+                 );
 
 void
 init_frontend (
@@ -48,4 +57,4 @@ init_frontend (
                const gboolean  big_screen
                );
 
-#endif /* __FRONTEND_H__ */
+#endif // __FRONTEND_H__

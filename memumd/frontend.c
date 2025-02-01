@@ -36,10 +36,12 @@
 #include "menu.h"
 #include "model.h"
 #include "pad.h"
+#include "rom.h"
 #include "screen.h"
 #include "sound.h"
 #include "sram.h"
 #include "state.h"
+#include "suspend.h"
 #include "tiles16b.h"
 #include "t8biso.h"
 
@@ -250,6 +252,46 @@ load_state (
 
 
 static void
+suspend_clear (
+               const gboolean verbose
+               )
+{
+  suspend_write_rom_file_name ( "", verbose );
+} // end suspend_clear
+
+
+static void
+suspend (
+         const gchar    *rom_fn,
+         const gboolean  verbose
+         )
+{
+  
+  FILE *f;
+  
+  
+  // Neteja el nom de la rom.
+  if ( !suspend_write_rom_file_name ( "", verbose ) )
+    return;
+  
+  // Intenta escriure l'estat
+  f= get_suspend_state_file ( true, verbose );
+  if ( f  == NULL ) return;
+  if ( MD_save_state ( f ) != 0 )
+    {
+      warning ( "No s'ha pogut desar l'estat" );
+      fclose ( f );
+      return;
+    }
+  fclose ( f );
+
+  // Desa el nom de la rom.
+  suspend_write_rom_file_name ( rom_fn, verbose );
+  
+} // end suspend
+
+
+static void
 check_signals (
                MD_Bool *stop,
                MD_Bool *reset,
@@ -366,6 +408,104 @@ loop (void)
 } // end loop
 
 
+static menu_response_t
+frontend_run_common (
+                     const MD_Rom       *rom,
+                     const MD_RomHeader *header,
+                     const char         *rom_id,
+                     const char         *sram_fn,
+                     const char         *eeprom_fn,
+                     const char         *state_prefix,
+                     const menu_mode_t   menu_mode,
+                     const gchar        *rom_fn,
+                     const bool          resume_exec,
+                     const int           verbose
+                     )
+{
+  
+  menu_response_t ret;
+  MDu8 model;
+  FILE *f;
+  
+  
+  ret= MENU_QUIT_MAINMENU;
+  _quit= _reset= FALSE;
+  init_model ( rom_id, header, verbose );
+  init_eeprom ( rom_id, eeprom_fn, verbose );
+  init_sram ( rom_id, sram_fn, verbose );
+  init_state ( rom_id, state_prefix, verbose );
+  model= model_get_val ();
+  _ciclespersec= model&MD_MODEL_PAL ?
+    MD_CYCLES_PER_SEC_PAL : MD_CYCLES_PER_SEC_NTSC;
+  _frontend.plugged_devs= pad_get_devices (); /* Inicialitza. */
+  sound_change_freq ( (model&MD_MODEL_PAL) != 0 );
+  MD_init ( rom, model, &_frontend, NULL );
+  if ( resume_exec )
+    {
+      f= get_suspend_state_file ( false, verbose );
+      if ( f == NULL ) goto error_resum_exec;
+      if ( MD_load_state ( f ) != 0 )
+        {
+          warning ( "No s'ha pogut llegir l'estat, o l'estat no és vàlid" );
+          fclose ( f );
+          goto error_resum_exec;
+        }
+      fclose ( f );
+    }
+  for (;;)
+    {
+      pad_clear ();
+      loop ();
+      if ( _quit )
+        {
+          ret= MENU_QUIT;
+          if ( rom_fn != NULL ) suspend ( rom_fn, verbose );
+          break;
+        }
+      ret= menu_run ( menu_mode );
+      if ( ret == MENU_RESET ) _reset= TRUE;
+      else if ( ret == MENU_REINIT )
+        {
+          close_sram ();
+          close_eeprom ();
+          model= model_get_val ();
+          _ciclespersec= model&MD_MODEL_PAL ?
+            MD_CYCLES_PER_SEC_PAL : MD_CYCLES_PER_SEC_NTSC;
+          _frontend.plugged_devs= pad_get_devices (); /* Guarda l'última
+        						 configuració. */
+          MD_close ();
+          MD_init ( rom, model, &_frontend, NULL );
+          init_eeprom ( rom_id, eeprom_fn, verbose );
+          init_sram ( rom_id, sram_fn, verbose );
+        }
+      else if ( ret != MENU_RESUME )
+        {
+          if ( rom_fn != NULL )
+            {
+              if ( ret == MENU_QUIT ) suspend ( rom_fn, verbose );
+              else                    suspend_clear ( verbose );
+            }
+          break;
+        }
+    }
+  close_sram ();
+  close_eeprom ();
+  close_model ();
+  _frontend.plugged_devs= pad_get_devices (); /* Guarda última configuració. */
+  MD_close ();
+  
+  return ret;
+
+ error_resum_exec:
+  suspend_clear ( verbose );
+  close_sram ();
+  close_eeprom ();
+  close_model ();
+  return MENU_QUIT_MAINMENU;
+  
+} // end frontend_run_common
+
+
 
 
 /**********************/
@@ -394,58 +534,61 @@ frontend_run (
               const char         *eeprom_fn,
               const char         *state_prefix,
               const menu_mode_t   menu_mode,
+              const gchar        *rom_fn,
               const int           verbose
               )
 {
+  return frontend_run_common ( rom, header, rom_id, sram_fn, eeprom_fn,
+                               state_prefix, menu_mode, rom_fn, false,
+                               verbose );
+} // end frontend_run
+
+
+menu_response_t
+frontend_resume (
+                 const menu_mode_t menu_mode,
+                 const int         verbose
+                 )
+{
   
+  gchar *rom_fn;
+  MD_Rom rom;
+  MD_RomHeader header;
+  const char *rom_id;
   menu_response_t ret;
-  MDu8 model;
   
+
+  // Prepara.
+  rom_fn= NULL;
+  rom.words= NULL;
+  rom.bytes= NULL;
   
-  ret= MENU_QUIT_MAINMENU;
-  _quit= _reset= FALSE;
-  init_model ( rom_id, header, verbose );
-  init_eeprom ( rom_id, eeprom_fn, verbose );
-  init_sram ( rom_id, sram_fn, verbose );
-  init_state ( rom_id, state_prefix, verbose );
-  model= model_get_val ();
-  _ciclespersec= model&MD_MODEL_PAL ?
-    MD_CYCLES_PER_SEC_PAL : MD_CYCLES_PER_SEC_NTSC;
-  _frontend.plugged_devs= pad_get_devices (); /* Inicialitza. */
-  sound_change_freq ( (model&MD_MODEL_PAL) != 0 );
-  MD_init ( rom, model, &_frontend, NULL );
-  for (;;)
-    {
-      pad_clear ();
-      loop ();
-      if ( _quit ) { ret= MENU_QUIT; break; }
-      ret= menu_run ( menu_mode );
-      if ( ret == MENU_RESET ) _reset= TRUE;
-      else if ( ret == MENU_REINIT )
-        {
-          close_sram ();
-          close_eeprom ();
-          model= model_get_val ();
-          _ciclespersec= model&MD_MODEL_PAL ?
-            MD_CYCLES_PER_SEC_PAL : MD_CYCLES_PER_SEC_NTSC;
-          _frontend.plugged_devs= pad_get_devices (); /* Guarda l'última
-        						 configuració. */
-          MD_close ();
-          MD_init ( rom, model, &_frontend, NULL );
-          init_eeprom ( rom_id, eeprom_fn, verbose );
-          init_sram ( rom_id, sram_fn, verbose );
-        }
-      else if ( ret != MENU_RESUME ) break;
-    }
-  close_sram ();
-  close_eeprom ();
-  close_model ();
-  _frontend.plugged_devs= pad_get_devices (); /* Guarda última configuració. */
-  MD_close ();
+  // Recupera el nom de la rom.
+  rom_fn= suspend_read_rom_file_name ( verbose );
+  if ( rom_fn == NULL ) goto error;
+  
+  // Carrega la ROM.
+  if ( load_rom ( rom_fn, &rom, verbose ) != 0 )
+    goto error;
+  MD_rom_get_header ( &rom, &header );
+  rom_id= get_rom_id ( &rom, &header, verbose );
+  
+  // Executa
+  ret= frontend_run_common ( &rom, &header, rom_id, NULL, NULL,
+                             NULL, menu_mode, rom_fn, true, verbose );
+  
+  // Allibera recursos
+  g_free ( rom_fn );
+  MD_rom_free ( &rom );
   
   return ret;
   
-} /* end frontend_run */
+ error:
+  MD_rom_free ( &rom );
+  if ( rom_fn != NULL ) g_free ( rom_fn );
+  return MENU_QUIT_MAINMENU;
+  
+} // end frontend_resume
 
 
 void
@@ -459,7 +602,7 @@ init_frontend (
   int ret;
   
 
-  /* Inicialitza. */
+  // Inicialitza.
   ret= SDL_Init ( SDL_INIT_AUDIO|SDL_INIT_VIDEO|
                   SDL_INIT_JOYSTICK|SDL_INIT_EVENTS );
   if ( ret != 0 )
@@ -472,8 +615,9 @@ init_frontend (
   init_t8biso ();
   init_menu ( conf, big_screen );
   init_hud ();
+  init_suspend ();
   
-  /* Inicialitza frontend. */
+  // Inicialitza frontend.
   _frontend.warning= _warning;
   _frontend.check= check_signals;
   _frontend.sres_changed= screen_sres_changed;
@@ -485,4 +629,4 @@ init_frontend (
   _frontend.plugged_devs= conf->devs;
   _frontend.check_buttons= pad_check_buttons;
   
-} /* end init_frontend */
+} // end init_frontend
