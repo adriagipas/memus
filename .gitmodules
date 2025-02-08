@@ -22,3 +22,9 @@
 [submodule "external/MD"]
 	path = external/MD
 	url = https://github.com/adriagipas/MD.git
+[submodule "external/IA32"]
+	path = external/IA32
+	url = https://github.com/adriagipas/IA32.git
+[submodule "external/PC"]
+	path = external/PC
+	url = https://github.com/adriagipas/PC.git

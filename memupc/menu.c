@@ -30,16 +30,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "cd.h"
 #include "cursor.h"
 #include "error.h"
+#include "frontend.h"
 #include "load_bios.h"
-#include "memc.h"
+#include "load_hdd.h"
+#include "load_vgabios.h"
 #include "menu.h"
 #include "mpad.h"
-#include "pad.h"
-#include "PSX.h"
+#include "PC.h"
 #include "screen.h"
+#include "set_disc.h"
 #include "tiles16b.h"
 #include "windowtex.h"
 
@@ -50,7 +51,6 @@
 /* MACROS */
 /**********/
 
-// El 90% de 320x240
 #define WIDTH 320
 #define HEIGHT 240
 
@@ -145,9 +145,6 @@ enum
 
 // Verbose.
 static bool _verbose;
-
-// Offset mode big screen.
-static int _bg_off;
 
 // Frame buffer.
 static int _fb[WIDTH*HEIGHT];
@@ -374,88 +371,6 @@ mouse_cb (
 } // end mouse_cb
 
 
-static int
-config_keys_action (
-                    const int pad
-                    )
-{
-  
-  static const char * const text[]=
-    {
-      "PRESSIONA ESQUERRA",
-      "PRESSIONA DRETA",
-      "PRESSIONA AMUNT",
-      "PRESSIONA AVALL",
-      "PRESSIONA BOTp TRIANGLE",
-      "PRESSIONA BOTp CERCLE",
-      "PRESSIONA BOTp CREU",
-      "PRESSIONA BOTp QUADRAT",
-      "PRESSIONA BOTp L1",
-      "PRESSIONA BOTp R1",
-      "PRESSIONA BOTp L2",
-      "PRESSIONA BOTp R2",
-      "PRESSIONA START",
-      "PRESSIONA SELECT"
-    };
-  
-  int aux[14], i;
-  bool stop;
-  SDL_Event event;
-  
-  
-  for ( i= 0; i < 14; ++i )
-    {
-
-      // Dibuixa
-      // --> Fons.
-      for ( int i= 0; i < WIDTH*HEIGHT; ++i ) _fb[i]= BGCOLOR;
-      // --> Menú.
-      tiles16b_draw_string ( _fb, WIDTH, "TECLAT", 2, 5,
-                             FGCOLOR1, FGCOLOR2, 0, T16_BG_TRANS );
-      tiles16b_draw_string ( _fb, WIDTH, text[i], 2, 6,
-                             SELCOLOR1, SELCOLOR2, 0, T16_BG_TRANS );
-      redraw_fb ();
-      
-      // Llig events.
-      stop= false;
-      for (;;)
-        {
-          while ( !stop && screen_next_event ( &event, &MOUSE_AREA ) )
-            switch ( event.type )
-              {
-              case SDL_QUIT: return QUIT;
-              case SDL_KEYDOWN:
-                if ( event.key.keysym.sym == SDLK_ESCAPE ) return CONTINUE;
-                aux[i]= event.key.keysym.sym;
-                stop= true;
-                break;
-              default: break;
-              }
-          if ( stop ) break;
-          g_usleep ( 100000 );
-        }
-      
-    }
-  _conf->keys[pad].left= aux[0];
-  _conf->keys[pad].right= aux[1];
-  _conf->keys[pad].up= aux[2];
-  _conf->keys[pad].down= aux[3];
-  _conf->keys[pad].button_triangle= aux[4];
-  _conf->keys[pad].button_circle= aux[5];
-  _conf->keys[pad].button_cross= aux[6];
-  _conf->keys[pad].button_square= aux[7];
-  _conf->keys[pad].button_L1= aux[8];
-  _conf->keys[pad].button_R1= aux[9];
-  _conf->keys[pad].button_L2= aux[10];
-  _conf->keys[pad].button_R2= aux[11];
-  _conf->keys[pad].start= aux[12];
-  _conf->keys[pad].select= aux[13];
-  
-  return CONTINUE;
-  
-} // end config_keys_action
-
-
 
 
 /*************/
@@ -465,7 +380,7 @@ config_keys_action (
 static const char *
 resume_get_text (void)
 {
-  return "REPReN PARTIDA";
+  return "TANCA MENu";
 } // end resume_get_text
 
 
@@ -481,7 +396,9 @@ resume_action (
 static const char *
 cd_get_text (void)
 {
-  return cd_is_empty () ? "INSERTA CD-ROM" : "CANVIA CD-ROM";
+  return frontend_disc_is_empty ( DISC_D_CDROM ) ?
+    "D: INSERIX CD-ROM" :
+    "D: CANVIA CD-ROM";
 } // end cd_get_text
 
 
@@ -490,65 +407,65 @@ cd_action (
            menu_state_t *mst
            )
 {
-
+  
   bool quit;
   
   
-  cd_set_disc ( &quit );
-
+  set_disc ( &quit, DISC_D_CDROM, _verbose );
+  
   return quit ? QUIT : RESUME;
   
 } // end cd_action
 
 
 static const char *
-memc1_get_text (void)
+floppyA_get_text (void)
 {
-  return _conf->memc_fn[0]==NULL ?
-    "INSERTA MEMORY CARD 1" :
-    "CANVIA MEMORY CARD 1";
-} // end memc1_get_text
+  return frontend_disc_is_empty ( DISC_A_FLOPPY_1M44 ) ?
+    "A: INSERIX DISQUET" :
+    "A: CANVIA DISQUET";
+} // end floppyA_get_text
 
 
 static int
-memc1_action (
-              menu_state_t *mst
-              )
+floppyA_action (
+                menu_state_t *mst
+                )
 {
-
+  
   bool quit;
   
   
-  memc_set ( 0, &quit );
-
-  return quit ? QUIT : CONTINUE;
+  set_disc ( &quit, DISC_A_FLOPPY_1M44, _verbose );
   
-} // end memc1_action
+  return quit ? QUIT : RESUME;
+  
+} // end floppyA_action
 
 
 static const char *
-memc2_get_text (void)
+floppyB_get_text (void)
 {
-  return _conf->memc_fn[1]==NULL ?
-    "INSERTA MEMORY CARD 2" :
-    "CANVIA MEMORY CARD 2";
-} // end memc2_get_text
+  return frontend_disc_is_empty ( DISC_B_FLOPPY_1M2 ) ?
+    "B: INSERIX DISQUET" :
+    "B: CANVIA DISQUET";
+} // end floppyB_get_text
 
 
 static int
-memc2_action (
-              menu_state_t *mst
-              )
+floppyB_action (
+                menu_state_t *mst
+                )
 {
-
+  
   bool quit;
   
   
-  memc_set ( 1, &quit );
-
-  return quit ? QUIT : CONTINUE;
+  set_disc ( &quit, DISC_B_FLOPPY_1M2, _verbose );
   
-} // end memc2_action
+  return quit ? QUIT : RESUME;
+  
+} // end floppyB_action
 
 
 static const char *
@@ -557,9 +474,9 @@ screen_size_get_text (void)
   
   static const char * const text[]=
     {
-     "FINESTRA",
-     "FINESTRA X1.5",
-     "FINESTRA X2",
+     "FINESTRA 640X480",
+     "FINESTRA 800X600",
+     "FINESTRA 960X720",
      "PANTALLA COMPLETA"
     };
   
@@ -575,7 +492,7 @@ screen_size_action (
 {
   
   if ( ++(_conf->screen_size) == SCREEN_SIZE_SENTINEL )
-    _conf->screen_size= SCREEN_SIZE_WIN_X1;
+    _conf->screen_size= SCREEN_SIZE_WIN_640_480;
   screen_change_size ( _conf->screen_size );
   
   return CONTINUE;
@@ -620,125 +537,6 @@ change_vsync_action (
 
 
 static const char *
-screen_tvmode_get_text (void)
-{
-  return _conf->tvres_is_pal ?
-    "RESOLUCIo: PAL" :
-    "RESOLUCIo: NTSC";
-} // end screen_tvmode_get_text
-
-
-static int
-screen_tvmode_action (
-                      menu_state_t *mst
-                      )
-{
-
-  _conf->tvres_is_pal= !_conf->tvres_is_pal;
-  screen_change_tvmode ( _conf->tvres_is_pal );
-  
-  return CONTINUE;
-  
-} // end screen_tvmode_action
-
-
-static const char *
-port1_get_text (void)
-{
-
-  static const char * const text[]=
-    {
-      "PORT 1: PAD ESTaNDARD",
-      "PORT 1: -"
-    };
-
-  return text[_conf->controllers[0]];
-  
-} // end port1_get_text
-
-
-static int
-port1_action (
-              menu_state_t *mst
-              )
-{
-
-  if ( _conf->controllers[0] == PSX_CONTROLLER_NONE )
-    _conf->controllers[0]= 0;
-  else ++_conf->controllers[0];
-
-  PSX_plug_controllers ( _conf->controllers[0], _conf->controllers[1] );
-
-  return CONTINUE;
-  
-} // end port1_action
-
-
-static const char *
-port2_get_text (void)
-{
-
-  static const char * const text[]=
-    {
-      "PORT 2: PAD ESTaNDARD",
-      "PORT 2: -"
-    };
-
-  return text[_conf->controllers[1]];
-  
-} // end port2_get_text
-
-
-static int
-port2_action (
-              menu_state_t *mst
-              )
-{
-
-  if ( _conf->controllers[1] == PSX_CONTROLLER_NONE )
-    _conf->controllers[1]= 0;
-  else ++_conf->controllers[1];
-
-  PSX_plug_controllers ( _conf->controllers[0], _conf->controllers[1] );
-
-  return CONTINUE;
-  
-} // end port2_action
-
-
-static const char *
-config_keys1_get_text (void)
-{
-  return "AJUSTA EL TECLAT PER AL PAD1";
-} // end config_keys1_get_text
-
-
-static int
-config_keys1_action (
-                     menu_state_t *mst
-                     )
-{
-  return config_keys_action ( 0 );
-} // end config_keys1_action
-
-
-static const char *
-config_keys2_get_text (void)
-{
-  return "AJUSTA EL TECLAT PER AL PAD2";
-} // end config_keys2_get_text
-
-
-static int
-config_keys2_action (
-                     menu_state_t *mst
-                     )
-{
-  return config_keys_action ( 1 );
-} // end config_keys2_action
-
-
-static const char *
 reset_get_text (void)
 {
   return "REINICIA";
@@ -766,7 +564,7 @@ bios_action (
              menu_state_t *mst
              )
 {
-
+  
   bool quit,ret;
   
   
@@ -775,7 +573,61 @@ bios_action (
   else if ( ret ) return RESET;
   else return CONTINUE;
   
+  return CONTINUE;
+  
 } // end bios_action
+
+
+static const char *
+vgabios_get_text (void)
+{
+  return "SELECCIONA VGA BIOS I REINICIA";
+} // end vgabios_get_text
+
+
+static int
+vgabios_action (
+                menu_state_t *mst
+                )
+{
+  
+  bool quit,ret;
+  
+  
+  ret= change_vgabios ( _conf, &quit, _verbose );
+  if ( quit ) return QUIT;
+  else if ( ret ) return RESET;
+  else return CONTINUE;
+  
+  return CONTINUE;
+  
+} // end vgabios_action
+
+
+static const char *
+hdd_get_text (void)
+{
+  return "SELECCIONA DISC DUR I REINICIA";
+} // end hdd_get_text
+
+
+static int
+hdd_action (
+            menu_state_t *mst
+            )
+{
+  
+  bool quit,ret;
+  
+  
+  ret= change_hdd ( _conf, &quit, _verbose );
+  if ( quit ) return QUIT;
+  else if ( ret ) return RESET;
+  else return CONTINUE;
+  
+  return CONTINUE;
+  
+} // end hdd_action
 
 
 static const char *
@@ -810,7 +662,6 @@ close_menu (void)
 void
 init_menu (
            conf_t     *conf,
-           const bool  big_screen,
            const bool  verbose
            )
 {
@@ -818,8 +669,7 @@ init_menu (
   // Bàsics.
   _verbose= verbose;
   _conf= conf;
-  _bg_off= big_screen ? 1 : 0;
-
+  
   // Textura.
   _fb_tex= windowtex_create_tex_fmt ( WIDTH, HEIGHT,
                                       SDL_PIXELFORMAT_RGBA32, false );
@@ -841,40 +691,20 @@ menu_run (void)
     {
      {resume_get_text,resume_action},
      {cd_get_text,cd_action},
-     {memc1_get_text,memc1_action},
-     {memc2_get_text,memc2_action},
+     {floppyA_get_text,floppyA_action},
+     {floppyB_get_text,floppyB_action},
      {screen_size_get_text,screen_size_action},
      {change_vsync_get_text,change_vsync_action},
-     {screen_tvmode_get_text,screen_tvmode_action},
-     {port1_get_text,port1_action},
-     {port2_get_text,port2_action},
-     {config_keys1_get_text,config_keys1_action},
-     {config_keys2_get_text,config_keys2_action},
      {reset_get_text,reset_action},
+     {hdd_get_text,hdd_action},
      {bios_get_text,bios_action},
-     {quit_get_text,quit_action}
-    };
-  
-  static const menuitem_t menu_basic_bs[]=
-    {
-     {resume_get_text,resume_action},
-     {cd_get_text,cd_action},
-     {memc1_get_text,memc1_action},
-     {memc2_get_text,memc2_action},
-     {change_vsync_get_text,change_vsync_action},
-     {port1_get_text,port1_action},
-     {port2_get_text,port2_action},
-     {config_keys1_get_text,config_keys1_action},
-     {config_keys2_get_text,config_keys2_action},
-     {reset_get_text,reset_action},
-     {bios_get_text,bios_action},
+     {vgabios_get_text,vgabios_action},
      {quit_get_text,quit_action}
     };
   
   static const menumode_t menus[]=
     {
-      { 14, menu_basic },
-      { 12, menu_basic_bs },
+      { 11, menu_basic },
     };
   
   const gulong delay1= 200000;
@@ -885,8 +715,8 @@ menu_run (void)
   gulong delay;
   
 
-  mst.N= menus[_bg_off].N;
-  mst.menu= menus[_bg_off].items;
+  mst.N= menus[0].N;
+  mst.menu= menus[0].items;
   mst.current= 0;
   mst.mouse_x= 0;
   mst.mouse_y= 0;

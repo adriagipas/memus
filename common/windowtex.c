@@ -422,7 +422,8 @@ tex_t *
 windowtex_create_tex_fmt (
                           const int    width,
                           const int    height,
-                          const Uint32 fmt
+                          const Uint32 fmt,
+                          const bool   linear_scale
                           )
 {
 
@@ -439,6 +440,10 @@ windowtex_create_tex_fmt (
     error ( "window_create_tex_fmt - no s'ha pogut"
             " crear una textura de %dx%d: %s",
             width, height, SDL_GetError () );
+  if ( SDL_SetTextureScaleMode ( ret->tex,
+                                 linear_scale ? SDL_ScaleModeLinear :
+                                 SDL_ScaleModeNearest ) != 0 )
+    error ( "window_create_tex_fmt - no s'ha pogut fixar el tipus d'escalat" );
   
   return ret;
   
@@ -581,6 +586,22 @@ windowtex_show_cursor (
 {
   SDL_ShowCursor ( show ? 1 : 0 );
 } // end windowtex_show_cursor
+
+
+void
+windowtex_grab_cursor (
+                       const bool grab
+                       )
+{
+  SDL_SetRelativeMouseMode ( grab );
+} // end windowtex_grab_cursor
+
+
+SDL_Rect
+windowtex_get_win_geometry (void)
+{
+  return _sdl.coords;
+} // end windowtex_get_win_geometry
 
 
 void

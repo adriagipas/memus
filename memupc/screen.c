@@ -29,7 +29,7 @@
 #include <string.h>
 #include <SDL.h>
 
-#include "PSX.h"
+#include "PC.h"
 #include "error.h"
 #include "icon.h"
 #include "lock.h"
@@ -43,11 +43,8 @@
 /* MACROS */
 /**********/
 
-#define PAL_WIDTH 768
-#define PAL_HEIGHT 576
-
-#define NTSC_WIDTH 640
-#define NTSC_HEIGHT 480
+#define MAX_WIDTH 1600
+#define MAX_HEIGHT 1200
 
 
 
@@ -59,7 +56,6 @@
 static struct
 {
   int  screen_size;
-  bool is_pal;
   bool fullscreen;
   int  width,height;
 } _wsize;
@@ -68,12 +64,12 @@ static struct
 static struct
 {
 
-  tex_t                    *tex;
-  PSX_UpdateScreenGeometry  old_g;
-  const SDL_Rect           *src; // Pot estar a NULL.
-  draw_area_t               area;
+  tex_t       *tex;
+  draw_area_t  area;
   
 } _fb;
+
+static uint32_t _frame[MAX_WIDTH*MAX_HEIGHT];
 
 static bool _cursor_enabled;
 
@@ -85,39 +81,26 @@ static bool _cursor_enabled;
 /*********************/
 
 static void
-decode_screen_size_tvmode (
-                           const int  screen_size,
-                           const bool is_pal
-                           )
+decode_screen_size (
+                    const int screen_size
+                    )
 {
-
-  
-  // Fixa grandaria base
-  if ( is_pal )
-    {
-      _wsize.width= PAL_WIDTH;
-      _wsize.height= PAL_HEIGHT;
-    }
-  else
-    {
-      _wsize.width= NTSC_WIDTH;
-      _wsize.height= NTSC_HEIGHT;
-    }
-
   // Decodifica screen_size.
   switch ( screen_size )
     {
-    case SCREEN_SIZE_WIN_X1:
+    case SCREEN_SIZE_WIN_640_480:
+      _wsize.width= 640;
+      _wsize.height= 480;
       _wsize.fullscreen= false;
       break;
-    case SCREEN_SIZE_WIN_X1_5:
-      _wsize.width=  (int) (_wsize.width*1.5);
-      _wsize.height= (int) (_wsize.height*1.5);
+    case SCREEN_SIZE_WIN_800_600:
+      _wsize.width= 800;
+      _wsize.height= 600;
       _wsize.fullscreen= false;
       break;
-    case SCREEN_SIZE_WIN_X2:
-      _wsize.width*= 2;
-      _wsize.height*= 2;
+    case SCREEN_SIZE_WIN_960_720:
+      _wsize.width= 960;
+      _wsize.height= 720;
       _wsize.fullscreen= false;
       break;
     case SCREEN_SIZE_FULLSCREEN:
@@ -129,15 +112,43 @@ decode_screen_size_tvmode (
 
   // Desa valors.
   _wsize.screen_size= screen_size;
-  _wsize.is_pal= is_pal;
   
-} // end decode_screen_size_tvmode
+} // end decode_screen_size
+
+
+static void
+render_frame (
+              const PC_RGB *fb,
+              const int     width,
+              const int     height,
+              const int     line_stride
+              )
+{
+
+  int r,c;
+  uint8_t *p;
+
+  
+  assert ( width <= MAX_WIDTH && height <= MAX_HEIGHT );
+  p= (uint8_t *) &_frame[0];
+  for ( r= 0; r < height; ++r )
+    {
+      for ( c= 0; c < width; ++c )
+        {
+          *(p++)= ((uint8_t) fb[c].r);
+          *(p++)= ((uint8_t) fb[c].g);
+          *(p++)= ((uint8_t) fb[c].b);
+          *(p++)= 0xFF;
+        }
+      fb+= line_stride;
+    }
+  
+} // end render_frame
 
 
 static void
 draw (void)
 {
-
   windowtex_draw_begin ();
   screen_draw_body ();
   windowtex_draw_end ();
@@ -147,99 +158,27 @@ draw (void)
 
 static void
 update_fb (
-           const PSX_UpdateScreenGeometry *g
+           const int width,
+           const int height
            )
 {
 
-  static SDL_Rect src;
+  assert ( width > 0 && height > 0 );
   
-  double x0,x1,y0,y1,tmp;
-  int c0,cf,r0,rf;
-  
-  if ( !(g->width > 1 &&
-         g->height > 1 &&
-         g->x0 < g->x1 &&
-         g->y0 < g->y1) )printf("%g %g %g %g\n",g->x0,g->x1,g->y0,g->y1);
-  assert ( g->width > 1 &&
-           g->height > 1 &&
-           g->x0 < g->x1 &&
-           g->y0 < g->y1 );
-
   // Crea textura.
-  if ( _fb.tex == NULL || _fb.tex->w != g->width || _fb.tex->h != g->height )
+  if ( _fb.tex == NULL || _fb.tex->w != width || _fb.tex->h != height )
     {
       if ( _fb.tex != NULL ) tex_free ( _fb.tex );
-      _fb.tex= windowtex_create_tex_fmt ( g->width, g->height,
-                                          SDL_PIXELFORMAT_RGBA32, false );
+      _fb.tex= windowtex_create_tex_fmt ( width, height,
+                                          SDL_PIXELFORMAT_RGBA32, true );
+      SDL_SetTextureScaleMode ( _fb.tex->tex, SDL_ScaleModeLinear );
     }
   
-  // Actualitza valors area i src.
-  // --> Copia
-  _fb.old_g= *g;
-  
-  // --> Centra horizontalment (verticalment millor no!)
-  tmp= g->x1-g->x0;
-  x0= (1.0-tmp)/2.0;
-  x1= x0 + tmp;
-  y0= g->y0; y1= g->y1;
-
-  // --> Determina el rectàngle a dibuixar de la textura i clip
-  if ( x0 < 0.0 || x1 > 1.0 || g->y0 < 0.0 || g->y1 > 1.0 )
-    {
-      
-      // Horizontal
-      tmp= x1-x0;
-      if ( x0 < 0.0 )
-        {
-          c0= (int) (((0-x0)/tmp*(g->width-1)) + 0.5);
-          if ( c0 >= g->width ) c0= g->width-1;
-          else if ( c0 < 0 ) c0= 0;
-          x0= 0.0;
-        }
-      else c0= 0;
-      if ( x1 > 1.0 )
-        {
-          cf= (int) (((1.0-x0)/tmp*(g->width-1)) + 0.5);
-          if ( cf >= g->width ) cf= g->width-1;
-          else if ( cf < 0 ) cf= 0;
-          x1= 1.0;
-        }
-      else cf= g->width-1;
-
-      // Vertical
-      tmp= y1-y0;
-      if ( y0 < 0.0 )
-        {
-          r0= (int) (((0-y0)/tmp*(g->height-1)) + 0.5);
-          if ( r0 >= g->height ) r0= g->height-1;
-          else if ( r0 < 0 ) r0= 0;
-          y0= 0.0;
-        }
-      else r0= 0;
-      if ( y1 > 1.0 )
-        {
-          rf= (int) (((1.0-y0)/tmp*(g->height-1)) + 0.5);
-          if ( rf >= g->height ) rf= g->height-1;
-          else if ( rf < 0 ) rf= 0;
-          y1= 1.0;
-        }
-      else rf= g->height-1;
-
-      // Assigna valors a src.
-      src.x= c0;
-      src.w= cf-c0+1;
-      src.y= r0;
-      src.h= rf-r0+1;
-      _fb.src= &src;
-      
-    }
-  else _fb.src= NULL;
-
-  // --> Fixa valors àrea de dibuix.
-  _fb.area.x0= x0;
-  _fb.area.x1= x1;
-  _fb.area.y0= y0;
-  _fb.area.y1= y1;
+  // Fixa valors àrea de dibuix.
+  _fb.area.x0= 0.0;
+  _fb.area.x1= 1.0;
+  _fb.area.y0= 0.0;
+  _fb.area.y1= 1.0;
   
 } // end update_fb
 
@@ -260,7 +199,7 @@ translate_xy_cursor_coords (
   mouse_area_t area;
   SDL_Rect win_geo;
   
-
+  
   // Àrea del ratolí.
   if ( mouse_area == NULL )
     {
@@ -332,21 +271,20 @@ close_screen (void)
 void
 init_screen (
              const conf_t *conf,
-             const char   *title,
-             const bool    big_screen
+             const char   *title
              )
 {
   
 
   // Finestra.
-  decode_screen_size_tvmode ( conf->screen_size, conf->tvres_is_pal );
+  decode_screen_size ( conf->screen_size );
   init_windowtex ( _wsize.width, _wsize.height,
                    title, ICON, conf->vsync, true,
                    _wsize.fullscreen );
 
   // Inicialitza frame buffer.
   _fb.tex= NULL;
-
+  
   // Altres.
   _cursor_enabled= false;
   
@@ -417,29 +355,12 @@ screen_change_size (
   if ( screen_size == _wsize.screen_size ) return;
   
   // Obté noves dimensions i redimensiona.
-  decode_screen_size_tvmode ( screen_size, _wsize.is_pal );
+  decode_screen_size ( screen_size );
   windowtex_set_wsize ( _wsize.width, _wsize.height );
   windowtex_set_fullscreen ( _wsize.fullscreen );
   draw ();
   
 } // end screen_change_size
-
-
-void
-screen_change_tvmode (
-                      const bool is_pal
-                      )
-{
-
-  if ( is_pal == _wsize.is_pal ) return;
-
-  // Obté noves dimensions i redimensiona.
-  decode_screen_size_tvmode ( _wsize.screen_size, is_pal );
-  windowtex_set_wsize ( _wsize.width, _wsize.height );
-  windowtex_set_fullscreen ( _wsize.fullscreen );
-  draw ();
-  
-} // end screen_change_tvmode
 
 
 void
@@ -481,22 +402,23 @@ screen_change_vsync (
 
 void
 screen_update (
-               const uint32_t                 *fb,
-               const PSX_UpdateScreenGeometry *g,
-               void                           *udata
+               void         *udata,
+               const PC_RGB *fb,
+               const int     width,
+               const int     height,
+               const int     line_stride
                )
 {
-  
-  if ( _fb.tex == NULL ||
-       g->width != _fb.tex->w ||
-       g->height != _fb.tex->h ||
-       g->x0 != _fb.old_g.x0 ||
-       g->x1 != _fb.old_g.x1 ||
-       g->y0 != _fb.old_g.y0 ||
-       g->y1 != _fb.old_g.y1 )
-    update_fb ( g );
-  tex_copy_fb ( _fb.tex, fb, g->width, g->height );
-  draw ();
+
+  // IGNORA GRANDÀRIES MOLT MENUDES
+  if ( width >= 100 && height >= 100 )
+    {
+      if ( _fb.tex == NULL || width != _fb.tex->w || height != _fb.tex->h )
+        update_fb ( width, height );
+      render_frame ( fb, width, height, line_stride );
+      tex_copy_fb ( _fb.tex, _frame, width, height );
+      draw ();
+    }
   
 } // end screen_update
 
@@ -516,7 +438,7 @@ screen_draw_body (void)
 {
 
   if ( _fb.tex != NULL )
-    windowtex_draw_tex ( _fb.tex, _fb.src, &_fb.area );
+    windowtex_draw_tex ( _fb.tex, NULL, &_fb.area );
   
 } // end screen_draw_body
 
@@ -531,3 +453,12 @@ screen_enable_cursor (
   windowtex_show_cursor ( false );
   
 } // end screen_enable_cursor
+
+
+void
+screen_grab_cursor (
+                    const bool grab
+                    )
+{
+  windowtex_grab_cursor ( grab );
+} // end screen_grab_cursor

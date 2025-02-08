@@ -96,7 +96,8 @@ tex_t *
 windowtex_create_tex_fmt (
                           const int    width,
                           const int    height,
-                          const Uint32 fmt
+                          const Uint32 fmt,
+                          const bool   linear_scale
                           );
 
 void
@@ -143,6 +144,16 @@ void
 windowtex_show_cursor (
                        const bool show
                        );
+
+void
+windowtex_grab_cursor (
+                       const bool grab
+                       );
+
+
+// Torna el rectangle on s'està dibuixant la imatge.
+SDL_Rect
+windowtex_get_win_geometry (void);
 
 
 // Textures //

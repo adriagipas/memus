@@ -10,6 +10,7 @@ seus corresponents binaris són:
 - **Game Boy Color**: *memugbc*
 - **Mega Drive**: *memumd*
 - **Nintendo Entertainment System**: *memunes*
+- **Pentium PC**: *memupc*
 - **PlayStation**: *memups*
 
 ## Compilació i instal·lació
@@ -41,3 +42,8 @@ cd build
 meson compile
 meson install
 ```
+
+## Atribucions
+
+- [Computer icons created by Freepik - Flaticon](https://www.flaticon.com/free-icons/computer)
+- <http://www.ix.sakura.ne.jp/~yoshi>
